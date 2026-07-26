@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contract:
+    name: Compact contract — compile + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Compact toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install compiler
+        run: compact update
+      - name: Versions
+        run: |
+          compact --version
+          compact compile --version
+      - name: Install deps
+        working-directory: contract
+        run: npm install
+      - name: Compile contract
+        working-directory: contract
+        run: npm run compile
+      - name: Verify managed output (circuits + keys)
+        working-directory: contract
+        run: |
+          test -d src/managed/alphyn/zkir
+          test -d src/managed/alphyn/keys
+          ls src/managed/alphyn/zkir
+      - name: Contract tests
+        working-directory: contract
+        run: npx vitest run
+
+  services:
+    name: Services — typecheck + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install deps
+        working-directory: services
+        run: npm install
+      - name: Typecheck
+        working-directory: services
+        run: npx tsc --noEmit
+      - name: Tests
+        working-directory: services
+        run: npx vitest run
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install deps
+        working-directory: frontend
+        run: npm install
+      - name: Build
+        working-directory: frontend
+        run: npm run build
