@@ -5,8 +5,7 @@ import { connectWallet, buildProviders } from './providers';
 import { createAlphynPrivateState, type AlphynPrivateState } from './witnesses';
 import {
   PRIVATE_STATE_ID,
-  allocationForRisk,
-  categoryForRisk,
+  categoryEnum,
   joinVaultContract,
   createVault,
   rebalance,
@@ -14,12 +13,9 @@ import {
   readLeaderboard,
   type LeaderboardRow,
 } from './alphyn-api';
+import Questionnaire from './Questionnaire';
+import { rand32, allocationBigints, type Strategy } from './strategy';
 
-const rand = (n: number): Uint8Array => {
-  const a = new Uint8Array(n);
-  crypto.getRandomValues(a);
-  return a;
-};
 const CAT = ['conservative', 'balanced', 'aggressive'];
 
 export default function App() {
@@ -28,7 +24,8 @@ export default function App() {
   const [address, setAddress] = useState('9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3');
   const [contract, setContract] = useState<any>(null);
   const [privateState, setPrivateState] = useState<AlphynPrivateState | null>(null);
-  const [risk, setRisk] = useState(4);
+  const [strategy, setStrategy] = useState<Strategy | null>(null);
+  const [showQuiz, setShowQuiz] = useState(false);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const [followTarget, setFollowTarget] = useState('');
   const [status, setStatus] = useState('Connect your wallet to begin. Make sure it is on Preview and the proof server is running.');
@@ -52,12 +49,15 @@ export default function App() {
       const api = await connectWallet();
       const p = await buildProviders(api);
       setProviders(p);
-      setStatus('✅ Connected. Deploy a new vault contract, or paste an existing address.');
+      setStatus('✅ Connected. Answer the questionnaire to build your private strategy.');
     });
+
+  const buildPrivateState = (): AlphynPrivateState =>
+    createAlphynPrivateState(rand32(), allocationBigints(strategy!), rand32());
 
   const deploy = () =>
     run('Deploying - wallet balances, proves, submits...', async () => {
-      const ps = createAlphynPrivateState(rand(32), allocationForRisk(risk), rand(32));
+      const ps = buildPrivateState();
       const deployed = await deployContract(providers, {
         compiledContract: CompiledAlphynContract,
         privateStateId: PRIVATE_STATE_ID,
@@ -73,7 +73,7 @@ export default function App() {
 
   const join = () =>
     run('Joining contract…', async () => {
-      const ps = createAlphynPrivateState(rand(32), allocationForRisk(risk), rand(32));
+      const ps = buildPrivateState();
       const c = await joinVaultContract(providers, address.trim(), ps);
       setContract(c);
       setPrivateState(ps);
@@ -82,9 +82,7 @@ export default function App() {
 
   const doCreate = () =>
     run('Creating your vault (allocation stays private - only a commitment goes on-chain)…', async () => {
-      const alloc = allocationForRisk(risk);
-      const assetCount = BigInt(alloc.filter((w) => w > 0n).length);
-      const res = await createVault(contract, categoryForRisk(risk), assetCount);
+      const res = await createVault(contract, categoryEnum(strategy!.category), BigInt(strategy!.assetCount));
       setStatus('✅ Vault created. tx=' + (res?.public?.txId ?? 'ok'));
     });
 
@@ -112,26 +110,97 @@ export default function App() {
       setStatus(`✅ Leaderboard: ${rows.length} vault(s).`);
     });
 
-  const cat = CAT[Math.min(2, risk <= 2 ? 0 : risk === 3 ? 1 : 2)];
-
-  return (
-    <div className="app">
+  const header = (
+    <>
       <div className="brand">
         <span className="dot">A</span>
         <h1>Alphyn Console</h1>
       </div>
       <p className="subtitle">
-        Privacy-first AI portfolio vault on Midnight. Deploy and drive the full ZK flow from your wallet.
+        Privacy-first AI portfolio vault on Midnight. Answer a few questions, get a private strategy, prove every rebalance in zero knowledge.
       </p>
+    </>
+  );
 
-      {/* 1. Connect + contract */}
+  if (showQuiz) {
+    return (
+      <div className="app">
+        {header}
+        <Questionnaire
+          onComplete={(s) => {
+            setStrategy(s);
+            setShowQuiz(false);
+            setStatus('✅ Strategy ready. Deploy a new vault contract or join an existing one.');
+          }}
+          onCancel={() => setShowQuiz(false)}
+        />
+      </div>
+    );
+  }
+
+  const secs = strategy?.epochDurationSeconds ?? 0;
+  const dur = secs >= 3600 ? `${Math.round(secs / 3600)}h` : `${Math.round(secs / 60)}m`;
+
+  return (
+    <div className="app">
+      {header}
+
+      {/* 1. Connect */}
       <div className="card">
-        <div className="card-head"><span className="step">1</span> Wallet &amp; contract</div>
+        <div className="card-head"><span className="step">1</span> Connect your wallet</div>
         <div className="row">
           <button className={providers ? 'btn-ok' : 'btn-primary'} onClick={connect} disabled={busy}>
             {providers ? '✓ Wallet connected' : 'Connect Wallet'}
           </button>
-          <button className="btn-ghost" onClick={deploy} disabled={busy || !providers}>
+        </div>
+      </div>
+
+      {/* 2. Strategy questionnaire */}
+      <div className="card">
+        <div className="card-head"><span className="step">2</span> Design your strategy</div>
+        {!strategy ? (
+          <>
+            <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
+              A short questionnaire turns your risk profile into an asset allocation. The weights are worked out
+              locally and kept private. They never leave your browser.
+            </p>
+            <div className="row">
+              <button className="btn-primary" onClick={() => setShowQuiz(true)}>Answer questionnaire</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span className={`cat-pill cat-${strategy.category}`}>{strategy.category}</span>
+              <span className="src-tag">{strategy.source === 'ai' ? 'AI generated' : 'Strategy engine'}</span>
+            </div>
+            <div className="alloc">
+              {['USDC', 'ETH', 'BTC', 'ARB'].map((a, i) => (
+                <div className="alloc-row" key={a}>
+                  <span className="alloc-name">{a}</span>
+                  <span className="alloc-track"><span className="alloc-fill" style={{ width: `${strategy.allocation[i]}%` }} /></span>
+                  <span className="alloc-pct">{strategy.allocation[i]}%</span>
+                </div>
+              ))}
+            </div>
+            <div className="params">
+              <div className="param"><div className="pv">{strategy.rebalanceTriggerPct}%</div><div className="pl">Rebalance trigger</div></div>
+              <div className="param"><div className="pv">{strategy.stopLossPct}%</div><div className="pl">Stop loss</div></div>
+              <div className="param"><div className="pv">{dur}</div><div className="pl">Epoch duration</div></div>
+              <div className="param"><div className="pv">{strategy.maxSlippageBps} bps</div><div className="pl">Max slippage</div></div>
+            </div>
+            <div className="row">
+              <button className="btn-ghost" onClick={() => setShowQuiz(true)}>Redo questionnaire</button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 3. Contract */}
+      <div className="card">
+        <div className="card-head"><span className="step">3</span> Deploy or join a contract</div>
+        <div className="row">
+          <button className="btn-primary" onClick={deploy} disabled={busy || !providers || !strategy}>
             Deploy new contract
           </button>
         </div>
@@ -141,28 +210,18 @@ export default function App() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
-          <button className="btn-ghost" onClick={join} disabled={busy || !providers || !address.trim()}>
+          <button className="btn-ghost" onClick={join} disabled={busy || !providers || !strategy || !address.trim()}>
             Join
           </button>
         </div>
+        {!strategy && <div className="hint">Build a strategy in step 2 first. Its allocation becomes your private commitment.</div>}
       </div>
 
-      {/* 2. My vault */}
+      {/* 4. Vault actions */}
       <div className="card">
-        <div className="card-head"><span className="step">2</span> My vault</div>
+        <div className="card-head"><span className="step">4</span> Run your vault</div>
         <div className="row">
-          <span className="risk-label">Risk level: <b>{risk}</b> ({cat})</span>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            value={risk}
-            onChange={(e) => setRisk(Number(e.target.value))}
-          />
-        </div>
-        <div className="hint">Allocation is derived locally and kept private. It never goes on-chain.</div>
-        <div className="row">
-          <button className="btn-primary" onClick={doCreate} disabled={busy || !contract}>
+          <button className="btn-primary" onClick={doCreate} disabled={busy || !contract || !strategy}>
             Create my vault
           </button>
           <button className="btn-ghost" onClick={doRebalance} disabled={busy || !contract}>
@@ -181,10 +240,10 @@ export default function App() {
         </div>
       </div>
 
-      {/* 3. Leaderboard */}
+      {/* 5. Leaderboard */}
       <div className="card">
         <div className="card-head">
-          <span className="step">3</span> Leaderboard (public ledger)
+          <span className="step">5</span> Leaderboard (public ledger)
           <button className="btn-ghost" style={{ marginLeft: 'auto' }} onClick={refreshBoard} disabled={busy || !providers || !address.trim()}>
             Refresh
           </button>

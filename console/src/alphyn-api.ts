@@ -32,6 +32,10 @@ export function allocationForRisk(risk: number): [bigint, bigint, bigint, bigint
 export const categoryForRisk = (risk: number): Category =>
   risk <= 2 ? Category.conservative : risk === 3 ? Category.balanced : Category.aggressive;
 
+/** Strategy category name -> Compact Category enum. */
+export const categoryEnum = (c: 'conservative' | 'balanced' | 'aggressive'): Category =>
+  c === 'conservative' ? Category.conservative : c === 'balanced' ? Category.balanced : Category.aggressive;
+
 export async function joinVaultContract(
   providers: any,
   contractAddress: string,
