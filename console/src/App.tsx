@@ -22,24 +22,6 @@ const rand = (n: number): Uint8Array => {
 };
 const CAT = ['conservative', 'balanced', 'aggressive'];
 
-const box: React.CSSProperties = {
-  border: '1px solid #eee',
-  borderRadius: 12,
-  padding: 20,
-  marginTop: 16,
-};
-const btn = (bg: string): React.CSSProperties => ({
-  padding: '10px 16px',
-  fontSize: 15,
-  fontWeight: 700,
-  color: '#fff',
-  background: bg,
-  border: 'none',
-  borderRadius: 8,
-  cursor: 'pointer',
-  marginRight: 8,
-});
-
 export default function App() {
   const [providers, setProviders] = useState<any>(null);
   // Pre-filled with the deployed Preview contract; deploy a new one to overwrite.
@@ -130,116 +112,118 @@ export default function App() {
       setStatus(`✅ Leaderboard: ${rows.length} vault(s).`);
     });
 
+  const cat = CAT[Math.min(2, risk <= 2 ? 0 : risk === 3 ? 1 : 2)];
+
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 820, margin: '40px auto', padding: 24 }}>
-      <h1 style={{ marginBottom: 2 }}>Alphyn Console</h1>
-      <p style={{ color: '#666', marginTop: 0 }}>
-        Privacy-first AI portfolio vault on Midnight - deploy &amp; drive the full ZK flow via your wallet.
+    <div className="app">
+      <div className="brand">
+        <span className="dot">A</span>
+        <h1>Alphyn Console</h1>
+      </div>
+      <p className="subtitle">
+        Privacy-first AI portfolio vault on Midnight. Deploy and drive the full ZK flow from your wallet.
       </p>
 
       {/* 1. Connect + contract */}
-      <div style={box}>
-        <b>1 · Wallet &amp; contract</b>
-        <div style={{ marginTop: 10 }}>
-          <button style={btn(providers ? '#4b9' : '#FF5E1A')} onClick={connect} disabled={busy}>
+      <div className="card">
+        <div className="card-head"><span className="step">1</span> Wallet &amp; contract</div>
+        <div className="row">
+          <button className={providers ? 'btn-ok' : 'btn-primary'} onClick={connect} disabled={busy}>
             {providers ? '✓ Wallet connected' : 'Connect Wallet'}
           </button>
-          <button style={btn('#333')} onClick={deploy} disabled={busy || !providers}>
+          <button className="btn-ghost" onClick={deploy} disabled={busy || !providers}>
             Deploy new contract
           </button>
         </div>
-        <div style={{ marginTop: 10 }}>
+        <div className="row">
           <input
             placeholder="…or paste existing contract address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            style={{ width: '70%', padding: 8, marginRight: 8 }}
           />
-          <button style={btn('#333')} onClick={join} disabled={busy || !providers || !address.trim()}>
+          <button className="btn-ghost" onClick={join} disabled={busy || !providers || !address.trim()}>
             Join
           </button>
         </div>
       </div>
 
       {/* 2. My vault */}
-      <div style={box}>
-        <b>2 · My vault</b>
-        <div style={{ marginTop: 10 }}>
-          Risk level: <b>{risk}</b> ({CAT[Math.min(2, risk <= 2 ? 0 : risk === 3 ? 1 : 2)]})
+      <div className="card">
+        <div className="card-head"><span className="step">2</span> My vault</div>
+        <div className="row">
+          <span className="risk-label">Risk level: <b>{risk}</b> ({cat})</span>
           <input
             type="range"
             min={1}
             max={5}
             value={risk}
             onChange={(e) => setRisk(Number(e.target.value))}
-            style={{ marginLeft: 12, verticalAlign: 'middle' }}
           />
-          <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
-            Allocation is derived locally and kept private - never sent on-chain.
-          </div>
         </div>
-        <div style={{ marginTop: 12 }}>
-          <button style={btn('#FF5E1A')} onClick={doCreate} disabled={busy || !contract}>
+        <div className="hint">Allocation is derived locally and kept private. It never goes on-chain.</div>
+        <div className="row">
+          <button className="btn-primary" onClick={doCreate} disabled={busy || !contract}>
             Create my vault
           </button>
-          <button style={btn('#333')} onClick={doRebalance} disabled={busy || !contract}>
+          <button className="btn-ghost" onClick={doRebalance} disabled={busy || !contract}>
             Rebalance (epoch)
           </button>
         </div>
-        <div style={{ marginTop: 12 }}>
+        <div className="row">
           <input
             placeholder="target vault id (hex) to follow"
             value={followTarget}
             onChange={(e) => setFollowTarget(e.target.value)}
-            style={{ width: '60%', padding: 8, marginRight: 8 }}
           />
-          <button style={btn('#333')} onClick={doFollow} disabled={busy || !contract || !followTarget.trim()}>
+          <button className="btn-ghost" onClick={doFollow} disabled={busy || !contract || !followTarget.trim()}>
             Follow @50%
           </button>
         </div>
       </div>
 
       {/* 3. Leaderboard */}
-      <div style={box}>
-        <b>3 · Leaderboard (public ledger)</b>
-        <button style={{ ...btn('#333'), marginLeft: 12 }} onClick={refreshBoard} disabled={busy || !providers || !address.trim()}>
-          Refresh
-        </button>
+      <div className="card">
+        <div className="card-head">
+          <span className="step">3</span> Leaderboard (public ledger)
+          <button className="btn-ghost" style={{ marginLeft: 'auto' }} onClick={refreshBoard} disabled={busy || !providers || !address.trim()}>
+            Refresh
+          </button>
+        </div>
         {board.length > 0 && (
-          <table style={{ width: '100%', marginTop: 12, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#888' }}>
+              <tr>
                 <th>Vault</th>
                 <th>Category</th>
-                <th>Assets</th>
-                <th>Epochs</th>
-                <th>Net PnL (×100 bps)</th>
-                <th>Followers</th>
+                <th className="num">Assets</th>
+                <th className="num">Epochs</th>
+                <th className="num">Net PnL (×100 bps)</th>
+                <th className="num">Followers</th>
               </tr>
             </thead>
             <tbody>
               {board.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #eee' }}>
-                  <td title={r.id}>{r.id.slice(0, 10)}…</td>
+                <tr key={r.id}>
+                  <td className="mono" title={r.id}>{r.id.slice(0, 10)}…</td>
                   <td>{CAT[r.category] ?? r.category}</td>
-                  <td>{String(r.assetCount)}</td>
-                  <td>{String(r.epochCount)}</td>
-                  <td>{String(r.netPnlScaled)}</td>
-                  <td>{String(r.followers)}</td>
+                  <td className="num">{String(r.assetCount)}</td>
+                  <td className="num">{String(r.epochCount)}</td>
+                  <td className="num">{String(r.netPnlScaled)}</td>
+                  <td className="num">{String(r.followers)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
+        <div className="hint">
           Only aggregates are public. No allocation, no balance, no per-asset breakdown is ever shown.
         </div>
       </div>
 
-      <p style={{ marginTop: 20 }}>{status}</p>
+      <div className="status">{status}</div>
       {address && (
-        <div style={{ marginTop: 8, padding: 12, background: '#0b0b0b', color: '#7CFC98', borderRadius: 8, wordBreak: 'break-all' }}>
-          <span style={{ color: '#aaa', fontSize: 12 }}>Contract: </span>
+        <div className="contract">
+          <span className="k">Contract</span>
           <code>{address}</code>
         </div>
       )}

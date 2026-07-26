@@ -31,3 +31,6 @@ console/public/zkir/
 frontend/public/keys/
 frontend/public/zkir/
 frontend/src/lib/midnight/generated/
+
+# local dev helper
+console/run-dev.sh
