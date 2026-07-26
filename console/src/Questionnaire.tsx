@@ -22,9 +22,11 @@ const TOTAL = 6;
 export default function Questionnaire({
   onComplete,
   onCancel,
+  mintLabel = 'Use this strategy',
 }: {
   onComplete: (s: Strategy) => void;
   onCancel: () => void;
+  mintLabel?: string;
 }) {
   const [step, setStep] = useState(1);
   const [risk, setRisk] = useState<RiskKey | null>(null);
@@ -117,7 +119,7 @@ export default function Questionnaire({
 
         <div className="wiz-nav">
           <button className="btn-ghost" onClick={() => setStrategy(null)}>Back to edit</button>
-          <button className="btn-primary" onClick={() => onComplete(strategy)}>Use this strategy</button>
+          <button className="btn-primary" onClick={() => onComplete(strategy)}>{mintLabel}</button>
         </div>
       </div>
     );

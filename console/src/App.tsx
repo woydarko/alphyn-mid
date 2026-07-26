@@ -1,15 +1,12 @@
-import React, { useState } from 'react';
-import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+import React, { useEffect, useState } from 'react';
 import { CompiledAlphynContract } from './alphyn-contract';
 import { connectWallet, buildProviders } from './providers';
 import { createAlphynPrivateState, type AlphynPrivateState } from './witnesses';
 import {
-  PRIVATE_STATE_ID,
   categoryEnum,
   joinVaultContract,
   createVault,
   rebalance,
-  follow,
   readLeaderboard,
   type LeaderboardRow,
 } from './alphyn-api';
@@ -17,247 +14,206 @@ import Questionnaire from './Questionnaire';
 import { rand32, allocationBigints, type Strategy } from './strategy';
 
 const CAT = ['conservative', 'balanced', 'aggressive'];
+// The live Preview vault contract. Every user joins it and mints their own vault.
+const CONTRACT_ADDRESS = '9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3';
+const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'];
+
+type Phase = 'connecting' | 'need-wallet' | 'quiz' | 'minting' | 'active';
 
 export default function App() {
+  const [phase, setPhase] = useState<Phase>('connecting');
   const [providers, setProviders] = useState<any>(null);
-  // Pre-filled with the deployed Preview contract; deploy a new one to overwrite.
-  const [address, setAddress] = useState('9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3');
   const [contract, setContract] = useState<any>(null);
-  const [privateState, setPrivateState] = useState<AlphynPrivateState | null>(null);
+  const [, setPrivateState] = useState<AlphynPrivateState | null>(null);
   const [strategy, setStrategy] = useState<Strategy | null>(null);
-  const [showQuiz, setShowQuiz] = useState(false);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
-  const [followTarget, setFollowTarget] = useState('');
-  const [status, setStatus] = useState('Connect your wallet to begin. Make sure it is on Preview and the proof server is running.');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setBusy(true);
-    setStatus(label);
+  // Auto-connect on entry: the wallet was already authorized on the landing page,
+  // so this is usually silent. No wallet -> show a connect prompt.
+  const doConnect = async () => {
+    setError(null);
+    setPhase('connecting');
     try {
-      await fn();
+      const api = await connectWallet();
+      const p = await buildProviders(api);
+      setProviders(p);
+      setPhase('quiz');
     } catch (e: any) {
-      setStatus('❌ ' + (e?.message ?? String(e)));
-      console.error(e);
+      setError(e?.message ?? String(e));
+      setPhase('need-wallet');
+    }
+  };
+
+  useEffect(() => {
+    doConnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mint = commit this strategy on-chain: join the vault contract with the
+  // allocation as private witness, then create the vault.
+  const mint = async (s: Strategy) => {
+    setStrategy(s);
+    setPhase('minting');
+    setError(null);
+    try {
+      setStatus('Joining the vault contract…');
+      const ps = createAlphynPrivateState(rand32(), allocationBigints(s), rand32());
+      const c = await joinVaultContract(providers, CONTRACT_ADDRESS, ps);
+      setContract(c);
+      setPrivateState(ps);
+      setStatus('Committing your strategy on-chain (allocation stays private)…');
+      await createVault(c, categoryEnum(s.category), BigInt(s.assetCount));
+      setStatus('Vault minted.');
+      setPhase('active');
+      refreshBoard(c);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+      setPhase('active'); // let them see the dashboard / retry a rebalance
+    }
+  };
+
+  const doRebalance = async () => {
+    if (!contract) return;
+    setBusy(true);
+    setError(null);
+    setStatus('Running an epoch — proving PnL followed your committed allocation…');
+    try {
+      // Demo oracle: ETH +3%, BTC -1% (order [USDC, ETH, BTC, ARB]).
+      await rebalance(contract, [0n, 300n, 0n, 0n], [0n, 0n, 100n, 0n]);
+      setStatus('Epoch complete. PnL proven in zero knowledge.');
+      refreshBoard(contract);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
     } finally {
       setBusy(false);
     }
   };
 
-  const connect = () =>
-    run('Connecting to your wallet...', async () => {
-      const api = await connectWallet();
-      const p = await buildProviders(api);
-      setProviders(p);
-      setStatus('✅ Connected. Answer the questionnaire to build your private strategy.');
-    });
-
-  const buildPrivateState = (): AlphynPrivateState =>
-    createAlphynPrivateState(rand32(), allocationBigints(strategy!), rand32());
-
-  const deploy = () =>
-    run('Deploying - wallet balances, proves, submits...', async () => {
-      const ps = buildPrivateState();
-      const deployed = await deployContract(providers, {
-        compiledContract: CompiledAlphynContract,
-        privateStateId: PRIVATE_STATE_ID,
-        initialPrivateState: ps,
-      });
-      const addr = deployed.deployTxData.public.contractAddress;
-      setAddress(addr);
-      setContract(deployed);
-      setPrivateState(ps);
-      setStatus('✅ Deployed at ' + addr);
-      console.log('ALPHYN_CONTRACT_ADDRESS=' + addr);
-    });
-
-  const join = () =>
-    run('Joining contract…', async () => {
-      const ps = buildPrivateState();
-      const c = await joinVaultContract(providers, address.trim(), ps);
-      setContract(c);
-      setPrivateState(ps);
-      setStatus('✅ Joined ' + address.trim());
-    });
-
-  const doCreate = () =>
-    run('Creating your vault (allocation stays private - only a commitment goes on-chain)…', async () => {
-      const res = await createVault(contract, categoryEnum(strategy!.category), BigInt(strategy!.assetCount));
-      setStatus('✅ Vault created. tx=' + (res?.public?.txId ?? 'ok'));
-    });
-
-  const doRebalance = () =>
-    run('Rebalancing - ZK proves PnL followed your committed allocation…', async () => {
-      // Demo oracle returns: ETH +3%, BTC -1% (index order [USDC, ETH, BTC, ARB]).
-      const up = [0n, 300n, 0n, 0n];
-      const down = [0n, 0n, 100n, 0n];
-      const res = await rebalance(contract, up, down);
-      setStatus('✅ Rebalanced. tx=' + (res?.public?.txId ?? 'ok'));
-    });
-
-  const doFollow = () =>
-    run('Following (direction only - no strategy revealed)…', async () => {
-      const hex = followTarget.trim().replace(/^0x/, '');
-      const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map((h) => parseInt(h, 16)));
-      const res = await follow(contract, bytes, 50n);
-      setStatus('✅ Followed. tx=' + (res?.public?.txId ?? 'ok'));
-    });
-
-  const refreshBoard = () =>
-    run('Reading public leaderboard…', async () => {
-      const rows = await readLeaderboard(providers, address.trim());
+  const refreshBoard = async (c?: any) => {
+    try {
+      const rows = await readLeaderboard(providers, CONTRACT_ADDRESS);
       setBoard(rows);
-      setStatus(`✅ Leaderboard: ${rows.length} vault(s).`);
-    });
+    } catch {
+      /* ignore */
+    }
+  };
 
   const header = (
     <>
       <div className="brand">
         <span className="dot">A</span>
-        <h1>Alphyn Console</h1>
+        <h1>Alphyn</h1>
       </div>
       <p className="subtitle">
-        Privacy-first AI portfolio vault on Midnight. Answer a few questions, get a private strategy, prove every rebalance in zero knowledge.
+        Privacy-first AI portfolio vault on Midnight. Your strategy stays private, every rebalance is proven in zero knowledge.
       </p>
     </>
   );
 
-  if (showQuiz) {
+  // ---------- Connecting ----------
+  if (phase === 'connecting') {
     return (
       <div className="app">
         {header}
-        <Questionnaire
-          onComplete={(s) => {
-            setStrategy(s);
-            setShowQuiz(false);
-            setStatus('✅ Strategy ready. Deploy a new vault contract or join an existing one.');
-          }}
-          onCancel={() => setShowQuiz(false)}
-        />
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div className="q-title">Connecting your wallet…</div>
+          <p className="q-sub">Approve the request in your wallet if it asks.</p>
+        </div>
       </div>
     );
   }
 
+  // ---------- No wallet ----------
+  if (phase === 'need-wallet') {
+    return (
+      <div className="app">
+        {header}
+        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+          <div className="q-title">Connect your wallet to start</div>
+          <p className="q-sub">
+            Install a Midnight wallet (1AM or Lace), switch it to Preview, then connect.
+          </p>
+          {error && <div className="status" style={{ borderColor: 'var(--orange)', margin: '0 0 16px' }}>❌ {error}</div>}
+          <button className="btn-primary" onClick={doConnect}>Connect Wallet</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Quiz ----------
+  if (phase === 'quiz') {
+    return (
+      <div className="app">
+        {header}
+        <Questionnaire onComplete={mint} onCancel={() => { /* stay on quiz */ }} mintLabel="Mint this strategy" />
+      </div>
+    );
+  }
+
+  // ---------- Minting ----------
+  if (phase === 'minting') {
+    return (
+      <div className="app">
+        {header}
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div className="q-title">Minting your vault…</div>
+          <p className="q-sub">{status}</p>
+          <p className="hint">This runs a real zero-knowledge proof, so it takes a moment.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Active (post-mint dashboard) ----------
   const secs = strategy?.epochDurationSeconds ?? 0;
   const dur = secs >= 3600 ? `${Math.round(secs / 3600)}h` : `${Math.round(secs / 60)}m`;
-
   return (
     <div className="app">
       {header}
 
-      {/* 1. Connect */}
-      <div className="card">
-        <div className="card-head"><span className="step">1</span> Connect your wallet</div>
-        <div className="row">
-          <button className={providers ? 'btn-ok' : 'btn-primary'} onClick={connect} disabled={busy}>
-            {providers ? '✓ Wallet connected' : 'Connect Wallet'}
-          </button>
+      {strategy && (
+        <div className="card">
+          <div className="card-head">Your vault</div>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className={`cat-pill cat-${strategy.category}`}>{strategy.category}</span>
+            <span className="src-tag">{strategy.source === 'ai' ? 'AI generated' : 'Strategy engine'}</span>
+          </div>
+          <div className="alloc">
+            {ASSETS.map((a, i) => (
+              <div className="alloc-row" key={a}>
+                <span className="alloc-name">{a}</span>
+                <span className="alloc-track"><span className="alloc-fill" style={{ width: `${strategy.allocation[i]}%` }} /></span>
+                <span className="alloc-pct">{strategy.allocation[i]}%</span>
+              </div>
+            ))}
+          </div>
+          <div className="params">
+            <div className="param"><div className="pv">{strategy.rebalanceTriggerPct}%</div><div className="pl">Rebalance trigger</div></div>
+            <div className="param"><div className="pv">{strategy.stopLossPct}%</div><div className="pl">Stop loss</div></div>
+            <div className="param"><div className="pv">{dur}</div><div className="pl">Epoch duration</div></div>
+            <div className="param"><div className="pv">{strategy.maxSlippageBps} bps</div><div className="pl">Max slippage</div></div>
+          </div>
+          <div className="row">
+            <button className="btn-primary" onClick={doRebalance} disabled={busy || !contract}>Run epoch (rebalance)</button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. Strategy questionnaire */}
-      <div className="card">
-        <div className="card-head"><span className="step">2</span> Design your strategy</div>
-        {!strategy ? (
-          <>
-            <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
-              A short questionnaire turns your risk profile into an asset allocation. The weights are worked out
-              locally and kept private. They never leave your browser.
-            </p>
-            <div className="row">
-              <button className="btn-primary" onClick={() => setShowQuiz(true)}>Answer questionnaire</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className={`cat-pill cat-${strategy.category}`}>{strategy.category}</span>
-              <span className="src-tag">{strategy.source === 'ai' ? 'AI generated' : 'Strategy engine'}</span>
-            </div>
-            <div className="alloc">
-              {['USDC', 'ETH', 'BTC', 'ARB'].map((a, i) => (
-                <div className="alloc-row" key={a}>
-                  <span className="alloc-name">{a}</span>
-                  <span className="alloc-track"><span className="alloc-fill" style={{ width: `${strategy.allocation[i]}%` }} /></span>
-                  <span className="alloc-pct">{strategy.allocation[i]}%</span>
-                </div>
-              ))}
-            </div>
-            <div className="params">
-              <div className="param"><div className="pv">{strategy.rebalanceTriggerPct}%</div><div className="pl">Rebalance trigger</div></div>
-              <div className="param"><div className="pv">{strategy.stopLossPct}%</div><div className="pl">Stop loss</div></div>
-              <div className="param"><div className="pv">{dur}</div><div className="pl">Epoch duration</div></div>
-              <div className="param"><div className="pv">{strategy.maxSlippageBps} bps</div><div className="pl">Max slippage</div></div>
-            </div>
-            <div className="row">
-              <button className="btn-ghost" onClick={() => setShowQuiz(true)}>Redo questionnaire</button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 3. Contract */}
-      <div className="card">
-        <div className="card-head"><span className="step">3</span> Deploy or join a contract</div>
-        <div className="row">
-          <button className="btn-primary" onClick={deploy} disabled={busy || !providers || !strategy}>
-            Deploy new contract
-          </button>
-        </div>
-        <div className="row">
-          <input
-            placeholder="…or paste existing contract address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-          <button className="btn-ghost" onClick={join} disabled={busy || !providers || !strategy || !address.trim()}>
-            Join
-          </button>
-        </div>
-        {!strategy && <div className="hint">Build a strategy in step 2 first. Its allocation becomes your private commitment.</div>}
-      </div>
-
-      {/* 4. Vault actions */}
-      <div className="card">
-        <div className="card-head"><span className="step">4</span> Run your vault</div>
-        <div className="row">
-          <button className="btn-primary" onClick={doCreate} disabled={busy || !contract || !strategy}>
-            Create my vault
-          </button>
-          <button className="btn-ghost" onClick={doRebalance} disabled={busy || !contract}>
-            Rebalance (epoch)
-          </button>
-        </div>
-        <div className="row">
-          <input
-            placeholder="target vault id (hex) to follow"
-            value={followTarget}
-            onChange={(e) => setFollowTarget(e.target.value)}
-          />
-          <button className="btn-ghost" onClick={doFollow} disabled={busy || !contract || !followTarget.trim()}>
-            Follow @50%
-          </button>
-        </div>
-      </div>
-
-      {/* 5. Leaderboard */}
       <div className="card">
         <div className="card-head">
-          <span className="step">5</span> Leaderboard (public ledger)
-          <button className="btn-ghost" style={{ marginLeft: 'auto' }} onClick={refreshBoard} disabled={busy || !providers || !address.trim()}>
-            Refresh
-          </button>
+          Leaderboard (public ledger)
+          <button className="btn-ghost" style={{ marginLeft: 'auto' }} onClick={() => refreshBoard()} disabled={busy}>Refresh</button>
         </div>
         {board.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Vault</th>
-                <th>Category</th>
-                <th className="num">Assets</th>
-                <th className="num">Epochs</th>
-                <th className="num">Net PnL (×100 bps)</th>
-                <th className="num">Followers</th>
+                <th>Vault</th><th>Category</th>
+                <th className="num">Assets</th><th className="num">Epochs</th>
+                <th className="num">Net PnL (×100 bps)</th><th className="num">Followers</th>
               </tr>
             </thead>
             <tbody>
@@ -274,16 +230,12 @@ export default function App() {
             </tbody>
           </table>
         )}
-        <div className="hint">
-          Only aggregates are public. No allocation, no balance, no per-asset breakdown is ever shown.
-        </div>
+        <div className="hint">Only aggregates are public. No allocation, no balance, no per-asset breakdown is ever shown.</div>
       </div>
 
-      <div className="status">{status}</div>
-      {address && (
-        <div className="contract">
-          <span className="k">Contract</span>
-          <code>{address}</code>
+      {(status || error) && (
+        <div className="status" style={error ? { borderColor: 'var(--orange)' } : undefined}>
+          {error ? `❌ ${error}` : `✅ ${status}`}
         </div>
       )}
     </div>
