@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { CompiledAlphynContract } from './alphyn-contract';
 import { connectWallet, buildProviders } from './providers';
 import { createAlphynPrivateState, type AlphynPrivateState } from './witnesses';
 import {
+  PRIVATE_STATE_ID,
   categoryEnum,
-  joinVaultContract,
   createVault,
   rebalance,
   readLeaderboard,
@@ -14,8 +15,6 @@ import Questionnaire from './Questionnaire';
 import { rand32, allocationBigints, type Strategy } from './strategy';
 
 const CAT = ['conservative', 'balanced', 'aggressive'];
-// The live Preview vault contract. Every user joins it and mints their own vault.
-const CONTRACT_ADDRESS = '9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3';
 const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'];
 
 type Phase = 'connecting' | 'need-wallet' | 'quiz' | 'minting' | 'active';
@@ -25,6 +24,7 @@ export default function App() {
   const [providers, setProviders] = useState<any>(null);
   const [contract, setContract] = useState<any>(null);
   const [, setPrivateState] = useState<AlphynPrivateState | null>(null);
+  const [vaultAddress, setVaultAddress] = useState<string | null>(null);
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const [status, setStatus] = useState('');
@@ -52,23 +52,31 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Mint = commit this strategy on-chain: join the vault contract with the
-  // allocation as private witness, then create the vault.
+  // Mint = commit this strategy on-chain: deploy a vault contract with the
+  // allocation as private witness, then create the vault inside it. Deploying
+  // (rather than joining a shared address) guarantees the on-chain verifier keys
+  // match this exact build.
   const mint = async (s: Strategy) => {
     setStrategy(s);
     setPhase('minting');
     setError(null);
     try {
-      setStatus('Joining the vault contract…');
+      setStatus('Deploying your vault contract…');
       const ps = createAlphynPrivateState(rand32(), allocationBigints(s), rand32());
-      const c = await joinVaultContract(providers, CONTRACT_ADDRESS, ps);
-      setContract(c);
+      const deployed = await deployContract(providers, {
+        compiledContract: CompiledAlphynContract,
+        privateStateId: PRIVATE_STATE_ID,
+        initialPrivateState: ps,
+      });
+      const addr = deployed.deployTxData.public.contractAddress;
+      setContract(deployed);
       setPrivateState(ps);
+      setVaultAddress(addr);
       setStatus('Committing your strategy on-chain (allocation stays private)…');
-      await createVault(c, categoryEnum(s.category), BigInt(s.assetCount));
+      await createVault(deployed, categoryEnum(s.category), BigInt(s.assetCount));
       setStatus('Vault minted.');
       setPhase('active');
-      refreshBoard(c);
+      refreshBoard(addr);
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setPhase('active'); // let them see the dashboard / retry a rebalance
@@ -84,7 +92,7 @@ export default function App() {
       // Demo oracle: ETH +3%, BTC -1% (order [USDC, ETH, BTC, ARB]).
       await rebalance(contract, [0n, 300n, 0n, 0n], [0n, 0n, 100n, 0n]);
       setStatus('Epoch complete. PnL proven in zero knowledge.');
-      refreshBoard(contract);
+      refreshBoard();
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -92,9 +100,11 @@ export default function App() {
     }
   };
 
-  const refreshBoard = async (c?: any) => {
+  const refreshBoard = async (addr?: string) => {
+    const target = addr ?? vaultAddress;
+    if (!target) return;
     try {
-      const rows = await readLeaderboard(providers, CONTRACT_ADDRESS);
+      const rows = await readLeaderboard(providers, target);
       setBoard(rows);
     } catch {
       /* ignore */
@@ -237,6 +247,9 @@ export default function App() {
         <div className="status" style={error ? { borderColor: 'var(--orange)' } : undefined}>
           {error ? `❌ ${error}` : `✅ ${status}`}
         </div>
+      )}
+      {vaultAddress && (
+        <div className="contract"><span className="k">Vault</span><code>{vaultAddress}</code></div>
       )}
     </div>
   );
