@@ -36,3 +36,5 @@ frontend/src/lib/midnight/generated/
 console/run-dev.sh
 console/_*.sh
 console/_*.log
+frontend/src/lib/dapp/managed/
+frontend/public/app/

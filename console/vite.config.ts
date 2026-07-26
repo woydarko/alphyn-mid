@@ -6,6 +6,9 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 // Mirrors the proven example-bboard UI build (Vite 8 / Rolldown) for the
 // Midnight wasm stack. See midnightntwrk/example-bboard (Apache-2.0).
 export default defineConfig({
+  // Served under /app on the unified site (Next rewrites /app/* here). All asset
+  // URLs become /app/... so they resolve both standalone and behind the proxy.
+  base: '/app/',
   cacheDir: './.vite',
   build: {
     target: 'esnext',

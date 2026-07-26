@@ -32,7 +32,10 @@ export async function connectWallet(): Promise<any> {
 }
 
 export async function buildProviders(connectedAPI: any) {
-  const zk = new FetchZkConfigProvider(window.location.origin, fetch.bind(window));
+  // ZK keys/zkir are served from this app's base path (see vite `base`), so the
+  // config base must include it. Works both standalone and behind the /app proxy.
+  const zkBase = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '');
+  const zk = new FetchZkConfigProvider(zkBase, fetch.bind(window));
   const config = await connectedAPI.getConfiguration();
   const priv = inMemoryPrivateStateProvider();
   const shielded = await connectedAPI.getShieldedAddresses();

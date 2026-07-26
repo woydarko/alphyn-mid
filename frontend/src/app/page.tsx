@@ -114,7 +114,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
 
               <div className="flex flex-col sm:flex-row items-center gap-5 pt-4">
                 <button
-                  onClick={() => window.open(process.env.NEXT_PUBLIC_CONSOLE_URL ?? 'http://localhost:5173', '_blank')}
+                  onClick={() => (window.location.href = '/app')}
                   className="w-full sm:w-auto px-10 py-5 bg-[#FF5E1A] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-xl shadow-orange-500/20"
                 >
                   Launch App <ArrowRight className="w-5 h-5" />
@@ -335,7 +335,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
           <h2 className="text-5xl lg:text-6xl font-black tracking-tight">Ready to secure your alpha?</h2>
           <p className="text-xl text-alphyn-textMuted max-w-2xl mx-auto font-medium">Join the next generation of DeFi where strategy creation is intelligent and execution is absolutely private.</p>
           <button
-            onClick={() => window.open(process.env.NEXT_PUBLIC_CONSOLE_URL ?? 'http://localhost:5173', '_blank')}
+            onClick={() => (window.location.href = '/app')}
             className="px-12 py-6 bg-[#FF5E1A] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-2xl shadow-orange-500/30 mt-8"
           >
             Launch App <ArrowRight className="w-6 h-6" />
