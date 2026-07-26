@@ -34,3 +34,5 @@ frontend/src/lib/midnight/generated/
 
 # local dev helper
 console/run-dev.sh
+console/_*.sh
+console/_*.log

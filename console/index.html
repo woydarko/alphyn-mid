@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Alphyn Console — Deploy on Midnight</title>
+    <script>
+      // Shim Node globals some Midnight deps reference at module load. This must
+      // run before the module graph evaluates, so it lives here as a classic
+      // (non-deferred) script rather than inside main.tsx.
+      window.global = window.global || window.globalThis;
+      window.process = window.process || {
+        env: {},
+        browser: true,
+        version: '',
+        versions: {},
+        platform: 'browser',
+        nextTick: function (cb) { setTimeout(cb, 0); },
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>
