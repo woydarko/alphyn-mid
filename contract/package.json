@@ -1,0 +1,20 @@
+{
+  "name": "@alphyn/contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Alphyn privacy-first AI portfolio vault — Compact contract (Midnight)",
+  "type": "module",
+  "scripts": {
+    "compile": "compact compile src/alphyn.compact src/managed/alphyn",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

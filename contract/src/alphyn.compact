@@ -1,0 +1,237 @@
+pragma language_version >= 0.20;
+
+import CompactStandardLibrary;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Alphyn — Privacy-first AI portfolio vault on Midnight
+//
+// PRIVACY MODEL (ZK, not TEE):
+//   • The user's AI-generated allocation vector is PRIVATE witness data — it is
+//     never written to the ledger. Only a *commitment* to it is public.
+//   • Each `rebalance` proves, in zero knowledge, that the PnL it records was
+//     computed from the SAME allocation the vault originally committed to
+//     (recompute the commitment from the witness and assert equality).
+//   • The public ledger exposes only aggregates: epoch count, cumulative
+//     gain/loss (for PnL + Sharpe off-chain), category label, asset count.
+//   • Nobody — not other users, not an indexer, not the keeper — can read the
+//     allocation or the exact balance.
+//
+// ASSET INDICES (fixed, 4-wide vectors): 0=USDC 1=ETH 2=BTC 3=ARB
+//
+// NO SIGNED INTS in Compact → PnL is split into two monotonic unsigned
+// accumulators (gainScaled / lossScaled). Net PnL = gain − loss, computed
+// off-chain for display. All figures are "scaled" (alloc% × returnBps, i.e.
+// ×100 vs true bps); the frontend divides by 100. This keeps every on-chain
+// operation to unsigned add/multiply — no division, no negatives.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export enum Category { conservative, balanced, aggressive }
+
+// Public, per-vault stats. Contains NO strategy detail — only the commitment
+// and coarse labels the user consents to reveal.
+struct VaultStats {
+  allocCommitment: Bytes<32>,  // commitment to the private allocation vector
+  category: Category,          // conservative | balanced | aggressive
+  assetCount: Uint<8>,         // how many assets (1..4) — public label, not the weights
+  epochCount: Uint<32>,        // number of rebalances executed
+  gainScaled: Uint<64>,        // Σ over epochs of Σ_i alloc%_i · upBps_i
+  lossScaled: Uint<64>,        // Σ over epochs of Σ_i alloc%_i · downBps_i
+  followers: Uint<32>,         // number of vaults following this one
+  active: Boolean,
+}
+
+// vaultId (derived from the owner's secret) → public stats
+export ledger vaults: Map<Bytes<32>, VaultStats>;
+// running total of vaults created (public liveness metric)
+export ledger vaultCount: Counter;
+// follower vaultId → target vaultId. The relationship is public; the follower's
+// own allocation % stays private (never disclosed).
+export ledger follows: Map<Bytes<32>, Bytes<32>>;
+
+// ─── Private witnesses (implemented in TypeScript, never on-chain) ────────────
+witness localSecretKey(): Bytes<32>;            // the user's vault secret
+witness allocation(): Vector<4, Uint<8>>;       // % per asset, must sum to 100
+witness allocationNonce(): Bytes<32>;           // blinding factor for the commitment
+
+// ─── Pure helpers ─────────────────────────────────────────────────────────────
+
+// Stable vault id derived from the secret. Knowing the secret == owning the vault,
+// so no msg.sender is needed — you can only mutate a vault you can re-derive.
+export pure circuit deriveVaultId(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "alphyn:vault:id:"), sk]);
+}
+
+// Commitment binding the private allocation to the vault.
+// VERIFY@compile: exact persistentCommit signature/generic — if the compiler
+// wants (value, rand) without an explicit generic, drop the <...>.
+pure circuit commitAllocation(alloc: Vector<4, Uint<8>>, nonce: Bytes<32>): Bytes<32> {
+  return persistentCommit<Vector<4, Uint<8>>>(alloc, nonce);
+}
+
+// Assert the witness allocation is a valid distribution (sums to exactly 100).
+// Compact has no mutable locals, so the 4-wide sum is unrolled.
+pure circuit assertValidAllocation(alloc: Vector<4, Uint<8>>): [] {
+  const total =
+    (alloc[0] as Uint<16>) + (alloc[1] as Uint<16>) +
+    (alloc[2] as Uint<16>) + (alloc[3] as Uint<16>);
+  assert(total == 100, "allocation must sum to 100");
+}
+
+// ─── Circuits ─────────────────────────────────────────────────────────────────
+
+// Create the caller's vault. Commits to the private allocation; publishes only
+// the commitment + coarse labels (category, assetCount). The weights stay secret.
+export circuit createVault(category: Category, assetCount: Uint<8>): [] {
+  assert(assetCount >= 1 && assetCount <= 4, "assetCount out of range");
+
+  const alloc = allocation();
+  assertValidAllocation(alloc);
+
+  // The vaultId is the intended PUBLIC handle for the vault (a preimage-resistant
+  // hash of the secret), so disclosing it is correct and leaks nothing about the key.
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(!vaults.member(id), "vault already exists");
+
+  // commitment is a hash of PRIVATE data → must be disclosed to sit on the ledger,
+  // but the hash reveals nothing about the underlying weights.
+  const commitment = disclose(commitAllocation(alloc, allocationNonce()));
+
+  // category / assetCount are circuit params (private by default). The user
+  // consents to reveal these coarse labels, so disclose them explicitly.
+  vaults.insert(id, VaultStats {
+    allocCommitment: commitment,
+    category:        disclose(category),
+    assetCount:      disclose(assetCount),
+    epochCount:      0,
+    gainScaled:      0,
+    lossScaled:      0,
+    followers:       0,
+    active:          true,
+  });
+  vaultCount.increment(1);
+}
+
+// Execute one epoch. `upBps` / `downBps` are PUBLIC oracle inputs: per-asset
+// positive / negative price return this epoch, in basis points (both unsigned;
+// an asset contributes to at most one of them). The circuit proves the recorded
+// PnL used the vault's COMMITTED allocation, then discloses only the aggregate.
+export circuit rebalance(
+  upBps:   Vector<4, Uint<32>>,
+  downBps: Vector<4, Uint<32>>
+): [] {
+  // The vaultId is the intended PUBLIC handle for the vault (a preimage-resistant
+  // hash of the secret), so disclosing it is correct and leaks nothing about the key.
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+
+  const v = vaults.lookup(id);
+  assert(v.active, "vault inactive");
+
+  // Re-prove the committed allocation: recompute the commitment from the witness
+  // and require it to match what was published at createVault. This is the ZK
+  // guarantee that the PnL below follows the strategy the user committed to.
+  const alloc = allocation();
+  const recomputed = commitAllocation(alloc, allocationNonce());
+  assert(recomputed == v.allocCommitment, "allocation does not match commitment");
+
+  // Weighted, unsigned PnL contributions for this epoch (4-wide, unrolled).
+  const w0 = alloc[0] as Uint<64>;
+  const w1 = alloc[1] as Uint<64>;
+  const w2 = alloc[2] as Uint<64>;
+  const w3 = alloc[3] as Uint<64>;
+  const gainAdd =
+    w0 * (upBps[0] as Uint<64>) + w1 * (upBps[1] as Uint<64>) +
+    w2 * (upBps[2] as Uint<64>) + w3 * (upBps[3] as Uint<64>);
+  const lossAdd =
+    w0 * (downBps[0] as Uint<64>) + w1 * (downBps[1] as Uint<64>) +
+    w2 * (downBps[2] as Uint<64>) + w3 * (downBps[3] as Uint<64>);
+
+  // gainAdd / lossAdd are derived from private weights → disclose the aggregates.
+  vaults.insert(id, VaultStats {
+    allocCommitment: v.allocCommitment,
+    category:        v.category,
+    assetCount:      v.assetCount,
+    epochCount:      (v.epochCount + 1) as Uint<32>,
+    gainScaled:      (v.gainScaled + disclose(gainAdd)) as Uint<64>,
+    lossScaled:      (v.lossScaled + disclose(lossAdd)) as Uint<64>,
+    followers:       v.followers,
+    active:          v.active,
+  });
+}
+
+// Follow another vault's DIRECTION. Public: follower→target link + target's
+// follower count. Private: the follower's own allocation and balance are never
+// revealed, and the target's allocation is never read.
+export circuit follow(targetId: Bytes<32>, pct: Uint<8>): [] {
+  assert(pct >= 1 && pct <= 100, "pct out of range");
+
+  // The vaultId is the intended PUBLIC handle for the vault (a preimage-resistant
+  // hash of the secret), so disclosing it is correct and leaks nothing about the key.
+  const id = disclose(deriveVaultId(localSecretKey()));
+  // targetId is a param (private by default) but is inherently a public vault
+  // handle — disclose it so it can key ledger reads/writes.
+  const tid = disclose(targetId);
+  assert(vaults.member(id), "follower vault not found");
+  assert(id != tid, "cannot follow own vault");
+  assert(vaults.member(tid), "target vault not found");
+
+  follows.insert(id, tid);
+
+  const t = vaults.lookup(tid);
+  vaults.insert(tid, VaultStats {
+    allocCommitment: t.allocCommitment,
+    category:        t.category,
+    assetCount:      t.assetCount,
+    epochCount:      t.epochCount,
+    gainScaled:      t.gainScaled,
+    lossScaled:      t.lossScaled,
+    followers:       (t.followers + 1) as Uint<32>,
+    active:          t.active,
+  });
+}
+
+// Stop following; decrement the target's follower count.
+export circuit unfollow(): [] {
+  // The vaultId is the intended PUBLIC handle for the vault (a preimage-resistant
+  // hash of the secret), so disclosing it is correct and leaks nothing about the key.
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(follows.member(id), "not following anyone");
+
+  const targetId = follows.lookup(id);
+  follows.remove(id);
+
+  if (vaults.member(targetId)) {
+    const t = vaults.lookup(targetId);
+    // A live follow relationship guarantees followers >= 1, so the subtraction
+    // cannot underflow (Compact Uint subtraction would otherwise revert).
+    vaults.insert(targetId, VaultStats {
+      allocCommitment: t.allocCommitment,
+      category:        t.category,
+      assetCount:      t.assetCount,
+      epochCount:      t.epochCount,
+      gainScaled:      t.gainScaled,
+      lossScaled:      t.lossScaled,
+      followers:       (t.followers - 1) as Uint<32>,
+      active:          t.active,
+    });
+  }
+}
+
+// Owner closes the vault (marks inactive; stats stay for history).
+export circuit closeVault(): [] {
+  // The vaultId is the intended PUBLIC handle for the vault (a preimage-resistant
+  // hash of the secret), so disclosing it is correct and leaks nothing about the key.
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+  const v = vaults.lookup(id);
+  vaults.insert(id, VaultStats {
+    allocCommitment: v.allocCommitment,
+    category:        v.category,
+    assetCount:      v.assetCount,
+    epochCount:      v.epochCount,
+    gainScaled:      v.gainScaled,
+    lossScaled:      v.lossScaled,
+    followers:       v.followers,
+    active:          false,
+  });
+}
