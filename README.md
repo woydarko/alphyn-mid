@@ -24,6 +24,20 @@ Deployed and verified live: `createVault` and `rebalance` both ran on-chain, and
 
 > Note on network: this is on Preview. Preprod was down during the build window, and the challenge allows either Preview or Preprod for Levels 1 to 5. The same build redeploys to Preprod without code changes once it is back up.
 
+## Known limitation: the Preview v9 transition
+
+Midway through this build, Preview and the browser wallets moved to the new v9 transaction format (ledger-v9, compact-runtime 0.18, "proof-versioned" transactions). This project runs on the stable v8 line, which is the newest one with a released Compact compiler: the public compiler tops out at 0.31.1 and emits v8 artifacts, so a v9 contract build is not yet possible with released tooling.
+
+What this means in practice:
+
+- Everything up to submission works and is verifiable here: the contract compiles, all 24 tests pass, real ZK proofs are generated in the browser, and the full product flow runs end to end.
+- A live submit from a v9 wallet is rejected by the node with a format error. The app detects this and explains it instead of failing silently.
+- The deployment recorded above was made and verified while Preview still accepted v8. When Midnight ships the v9 compiler, this repo migrates by bumping versions and recompiling, with no design changes.
+
+## Why epochs run from the client
+
+Only the vault owner holds the private allocation witness. A server-side keeper could not run a rebalance without being handed the strategy, which would defeat the point. So the epoch proof is generated where the secret lives: in the owner's browser. The vault page has an auto-run toggle that fires an epoch on the strategy's cadence while the page is open.
+
 ## Privacy Model
 
 - **Public** (on-chain, anyone can read): a hash commitment to the allocation, a coarse category label (conservative / balanced / aggressive), the asset count, epoch count, cumulative gain and loss totals, and follower counts.

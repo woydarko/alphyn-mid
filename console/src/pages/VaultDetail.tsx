@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ArrowUpRight, ArrowDownRight, MoreVertical, History, Settings as SettingsIcon,
@@ -19,8 +19,35 @@ export default function VaultDetail() {
   const [showClose, setShowClose] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [running, setRunning] = useState(false);
+  const [auto, setAuto] = useState(false);
   const [closing, setClosing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const runningRef = useRef(false);
+
+  // Auto-run: fire one epoch per strategy epoch-duration while the page is open.
+  // The keeper cannot do this server-side without holding the private allocation,
+  // so the epoch loop lives with the only party who has the witness: this client.
+  useEffect(() => {
+    if (!auto || !v) return;
+    const ms = Math.max(60, v.epochDurationSeconds) * 1000;
+    const t = setInterval(async () => {
+      if (runningRef.current) return;
+      runningRef.current = true;
+      setRunning(true);
+      try {
+        await runEpoch(v.vaultId);
+        setErr(null);
+      } catch (e: any) {
+        setErr(e?.message ?? String(e));
+        setAuto(false); // stop the loop instead of hammering a failing node
+      } finally {
+        runningRef.current = false;
+        setRunning(false);
+      }
+    }, ms);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, v?.vaultId, v?.epochDurationSeconds]);
 
   if (!v) {
     return (
@@ -122,6 +149,10 @@ export default function VaultDetail() {
           <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
             {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
           </button>
+          <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
+            <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#FF5E1A' }} />
+            Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
+          </label>
         </div>
 
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">

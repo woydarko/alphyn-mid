@@ -11,15 +11,14 @@ This walks you through running a vault end to end. No blockchain experience need
 
 ## Step by step
 
-1. Open the app. In development that is `http://localhost:5173`. The landing site has a "Launch App" button that opens it too.
-2. Click **Connect Wallet** and approve the request in your wallet popup. Your address shows up once it connects.
-3. Click **Answer questionnaire**. A short six-step flow asks about your risk tolerance, time horizon, preferred assets, target APY, and max drawdown, and lets you add free-text notes. From those answers a strategy is generated: an allocation across USDC, ETH, BTC, and ARB, plus rebalance and stop-loss parameters. If an OpenRouter key is set the model shapes the weights; otherwise a local engine does. Either way the weights are computed in your browser and never leave it.
-4. Review the strategy preview. It shows your category, the allocation bars, and the parameters. Click **Use this strategy** to keep it, or **Back to edit** to change an answer.
-5. Deploy or join a contract. The deployed Preview address is already filled in, so you can click **Join** to use it. To stand up your own, click **Deploy new contract** and wait for the address. Either way, your strategy's allocation becomes the private commitment for that vault.
-6. Click **Create my vault**. Your wallet will ask you to approve. Behind the scenes this commits a hash of your allocation to the chain. The weights themselves stay on your machine.
-7. Click **Rebalance** to run one epoch. This is where the zero-knowledge proof happens: the app proves your PnL was calculated from the allocation you committed to, without revealing it. Approve in your wallet and wait for the transaction.
-8. Click **Refresh** under the leaderboard. You will see your vault with its category, epoch count, and net PnL. You will not see the weights, because they were never published.
-9. To follow another vault, paste its id into the follow box and click **Follow**. That records a public link between the two vaults. Neither strategy is exposed.
+1. Open the landing site at `http://localhost:3000`. Click **Connect & Launch**, approve the wallet prompt, and you land in the app at `/app`.
+2. The app drops you straight into the strategy questionnaire: risk tolerance, time horizon, preferred assets, target APY, max drawdown, and an optional name and notes. From those answers the local engine builds an allocation across USDC, ETH, BTC, and ARB plus rebalance parameters. The weights are computed in your browser and never leave it.
+3. Review the preview: category, allocation bars, and parameters. Click **Mint this strategy**. The app deploys or joins the vault contract and commits a hash of your allocation on-chain. The weights themselves stay on your machine, encrypted at rest with a key derived from your wallet.
+4. You arrive on your vault page. It shows notional NAV, cumulative PnL, the performance chart, and your private allocation. Click **Run epoch** to rebalance once, or tick **Auto-run** to fire an epoch on your strategy's cadence while the page stays open. Each epoch generates a real zero-knowledge proof that the PnL followed your committed allocation.
+5. **Deposit** and **Withdraw** set your notional paper capital. No real tokens move; Midnight has no DEX yet, so the vault sizes PnL against paper capital and proves the math.
+6. The **Dashboard** lists all your vaults with aggregate stats. **New Strategy** mints another vault into the same contract.
+7. The **Leaderboard** ranks every vault on the shared ledger by public aggregates only. Click **Follow** on someone else's vault, pick which of your vaults follows and at what percent. Neither side's strategy is revealed.
+8. **Settings** lets you rename a vault locally and close it on-chain. Closing asks you to type CONFIRM because it cannot be undone.
 
 Each action takes a moment because a real proof is being generated on the proof server. That is normal.
 

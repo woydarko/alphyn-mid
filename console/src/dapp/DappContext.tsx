@@ -93,6 +93,20 @@ export const useDapp = () => {
   return v;
 };
 
+// Map raw node/SDK failures to something a person can act on. The big one is the
+// v8/v9 line gap: Preview now speaks the v9 transaction format, but the public
+// Compact compiler still emits v8 artifacts, so live submits bounce until the v9
+// toolchain ships.
+const explainTxError = (e: any): Error => {
+  const m = String(e?.message ?? e);
+  if (/proof-versioned|Custom error: 170|InvalidDustSpendProof|1010: Invalid Transaction/i.test(m)) {
+    return new Error(
+      'Network version gap: Preview has moved to the v9 transaction format, while this build runs on the stable v8 SDK (the v9 Compact compiler is not published yet). The proof was generated fine; the node rejected the submit format. On-chain submits resume when Midnight ships the v9 toolchain.',
+    );
+  }
+  return e instanceof Error ? e : new Error(m);
+};
+
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
 const bigAlloc = (a: number[]): [bigint, bigint, bigint, bigint] =>
@@ -228,6 +242,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
   const mint = useCallback(
     async (s: Strategy, name: string): Promise<LocalVault> => {
+      try {
       const secret = rand32();
       const nonce = rand32();
       const ps = createAlphynPrivateState(secret, bigAlloc(s.allocation), nonce);
@@ -275,21 +290,28 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       };
       await persist([...vaults, v]);
       return v;
+      } catch (e) {
+        throw explainTxError(e);
+      }
     },
     [providers, contractAddress, vaults, persist],
   );
 
   const runEpoch = useCallback(
     async (vaultId: string) => {
-      const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-      const contract = await joinFor(v);
-      const { up, down } = await fetchOracle();
-      await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
-      const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
-      const pnlBps = Math.round(num / 100);
-      const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
-      await persist(vaults.map((x) => (x.vaultId === vaultId ? updated : x)));
-      refreshLeaderboard();
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        const contract = await joinFor(v);
+        const { up, down } = await fetchOracle();
+        await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
+        const pnlBps = Math.round(num / 100);
+        const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? updated : x)));
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
     },
     [vaults, providers, persist, refreshLeaderboard],
   );
@@ -309,31 +331,43 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
   const follow = useCallback(
     async (vaultId: string, targetId: string, pct: number) => {
-      const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-      const contract = await joinFor(v);
-      await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
-      await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: targetId } : x)));
-      refreshLeaderboard();
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        const contract = await joinFor(v);
+        await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: targetId } : x)));
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
     },
     [vaults, providers, persist, refreshLeaderboard],
   );
   const unfollow = useCallback(
     async (vaultId: string) => {
-      const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-      const contract = await joinFor(v);
-      await contract.callTx.unfollow();
-      await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: null } : x)));
-      refreshLeaderboard();
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        const contract = await joinFor(v);
+        await contract.callTx.unfollow();
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: null } : x)));
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
     },
     [vaults, providers, persist, refreshLeaderboard],
   );
   const closeVault = useCallback(
     async (vaultId: string) => {
-      const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-      const contract = await joinFor(v);
-      await contract.callTx.closeVault();
-      await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, active: false } : x)));
-      refreshLeaderboard();
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        const contract = await joinFor(v);
+        await contract.callTx.closeVault();
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, active: false } : x)));
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
     },
     [vaults, providers, persist, refreshLeaderboard],
   );
