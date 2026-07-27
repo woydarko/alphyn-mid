@@ -46,7 +46,8 @@ export default function Questionnaire({
     (step === 2 && !horizon) ||
     (step === 3 && assets.length === 0) ||
     (step === 4 && !targetApy) ||
-    (step === 5 && !maxDrawdown);
+    (step === 5 && !maxDrawdown) ||
+    (step === 6 && !vaultName.trim());
 
   const toggleAsset = (a: Asset) =>
     setAssets((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
@@ -234,17 +235,16 @@ export default function Questionnaire({
 
       {step === 6 && (
         <>
-          <div style={{ textAlign: 'center', marginBottom: 8 }}><span className="opt-pill">Optional</span></div>
           <h2 className="q-title">Make it yours</h2>
-          <p className="q-sub">Name your vault and add notes for the strategy engine.</p>
+          <p className="q-sub">Name your vault. Notes for the strategy engine are optional.</p>
           <div style={{ marginBottom: 16 }}>
-            <label className="field-label">Vault name</label>
+            <label className="field-label">Vault name <span style={{ color: 'var(--orange)' }}>*</span></label>
             <input className="text-full" value={vaultName} maxLength={40} placeholder="e.g. ETH bullish Q3"
               onChange={(e) => setVaultName(e.target.value)} />
-            <div className="counter">{vaultName.length}/40</div>
+            <div className="counter">{vaultName.trim() ? `${vaultName.length}/40` : 'Required'}</div>
           </div>
           <div>
-            <label className="field-label">Strategy notes</label>
+            <label className="field-label">Strategy notes <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
             <textarea rows={4} value={description} maxLength={280}
               placeholder="e.g. Focus on ETH, hold through dips, keep some USDC as ballast."
               onChange={(e) => setDescription(e.target.value)} />
