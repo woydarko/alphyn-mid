@@ -40,29 +40,6 @@ export interface Strategy {
   source: 'ai' | 'local'; // where the weights came from
 }
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-const SYSTEM_PROMPT =
-  'You are a DeFi portfolio strategy engine. Respond ONLY with valid JSON. ' +
-  'No preamble, no explanation, no markdown. Raw JSON only. Schema: ' +
-  '{ "allocations": { "USDC": number, "ETH": number, "BTC": number, "ARB": number }, ' +
-  '"rebalance_trigger_pct": number, "stop_loss_pct": number, ' +
-  '"epoch_duration_seconds": number, "max_slippage_bps": number }. ' +
-  'Rules: allocations must sum to exactly 100 and use ONLY the allowed assets ' +
-  '(set others to 0). rebalance_trigger_pct 1-20, stop_loss_pct 2-30, ' +
-  'epoch_duration_seconds 300-86400, max_slippage_bps 10-200.';
-
-function buildUserPrompt(q: Questionnaire): string {
-  const own = q.description ? `User's own words: "${q.description}"\n\n` : '';
-  return (
-    `${own}Generate a portfolio strategy with these constraints: ` +
-    `risk_level=${q.riskLevel} (1-5), time_horizon=${q.horizon}, ` +
-    `allowed_assets=${JSON.stringify(q.assets)}, target_apy=${q.targetApy}, ` +
-    `max_drawdown=${q.maxDrawdown}. Honor the user's own words when shaping ` +
-    `weights but stay within the constraints. Return only valid JSON.`
-  );
-}
-
 interface RawStrategy {
   allocations: Partial<Record<Asset, number>>;
   rebalance_trigger_pct: number;
@@ -97,39 +74,13 @@ function localStrategy(q: Questionnaire): RawStrategy {
   };
 }
 
-function readKey(): string | undefined {
-  const env = (import.meta as any).env?.VITE_OPENROUTER_API_KEY as string | undefined;
-  const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('alphyn-openrouter-key') ?? undefined : undefined;
-  return env || stored || undefined;
-}
-
-async function callOpenRouter(q: Questionnaire): Promise<RawStrategy> {
-  const key = readKey();
-  if (!key) return localStrategy(q);
-  const model = (import.meta as any).env?.VITE_OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
-  const res = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-      'HTTP-Referer': typeof location !== 'undefined' ? location.origin : 'https://alphyn.app',
-      'X-Title': 'Alphyn',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(q) },
-      ],
-      temperature: 0.3,
-    }),
-  });
-  if (!res.ok) throw new Error(`OpenRouter error ${res.status}: ${await res.text()}`);
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = data.choices?.[0]?.message?.content ?? '';
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('OpenRouter returned no JSON.');
-  return JSON.parse(match[0]) as RawStrategy;
+// SECURITY: no AI API key ever runs in the browser. A client-side OpenRouter call
+// would bake the key into the public bundle (or expose it via localStorage/XSS) and
+// leak the questionnaire to a third party. Strategy generation therefore runs fully
+// locally and privately. If real AI is wanted, it must go through a backend proxy
+// that holds the key server-side; the client keeps calling this same function.
+async function callStrategyEngine(q: Questionnaire): Promise<RawStrategy> {
+  return localStrategy(q);
 }
 
 /** Zero out disallowed assets and renormalize weights to integers summing to 100. */
@@ -157,8 +108,7 @@ export async function generateStrategy(q: Questionnaire): Promise<Strategy> {
   if (q.riskLevel < 1 || q.riskLevel > 5) throw new Error('riskLevel must be 1..5');
   if (q.assets.length === 0) throw new Error('at least one asset required');
 
-  const usingAi = !!readKey();
-  const raw = await callOpenRouter(q);
+  const raw = await callStrategyEngine(q);
   const allocation = normalizeAllocation(raw.allocations, q.assets);
   const assetCount = allocation.filter((w) => w > 0).length;
 
@@ -170,7 +120,7 @@ export async function generateStrategy(q: Questionnaire): Promise<Strategy> {
     stopLossPct: clamp(raw.stop_loss_pct, 2, 30),
     epochDurationSeconds: clamp(raw.epoch_duration_seconds, 300, 86400),
     maxSlippageBps: clamp(raw.max_slippage_bps, 10, 200),
-    source: usingAi ? 'ai' : 'local',
+    source: 'local',
   };
 }
 

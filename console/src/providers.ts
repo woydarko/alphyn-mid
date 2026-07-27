@@ -13,12 +13,17 @@ import semver from 'semver';
 const COMPATIBLE_CONNECTOR = '4.x';
 export const NETWORK_ID = 'preview';
 
+// Recognised wallet connector ids, tried first so a stray injected object cannot
+// shadow the real wallet. Unknown ids are still allowed as a last resort.
+const KNOWN_WALLETS = ['mnLace', 'lace', 'oneAndAllMoney', '1am', 'onam', 'midnight'];
+
 function getWallet(): any {
   const w = (window as any).midnight;
   if (!w) return undefined;
-  return Object.values(w).find(
-    (x: any) => x && typeof x === 'object' && 'apiVersion' in x && semver.satisfies(x.apiVersion, COMPATIBLE_CONNECTOR),
-  );
+  const compatible = (x: any) =>
+    x && typeof x === 'object' && 'apiVersion' in x && semver.satisfies(x.apiVersion, COMPATIBLE_CONNECTOR);
+  for (const k of KNOWN_WALLETS) if (compatible(w[k])) return w[k];
+  return Object.values(w).find(compatible);
 }
 
 export async function connectWallet(): Promise<any> {

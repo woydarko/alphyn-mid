@@ -14,13 +14,16 @@ export default function Leaderboard() {
   const [sort, setSort] = useState<Sort>('pnl');
   const [target, setTarget] = useState<LeaderboardRow | null>(null);
   const [pct, setPct] = useState(50);
+  const [followerId, setFollowerId] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => { refreshLeaderboard(); }, [refreshLeaderboard]);
 
   const mine = new Set(vaults.map((v) => v.vaultId));
-  const follower = vaults[0]; // the vault that will follow
+  const myVaults = vaults.filter((v) => v.active && !v.locked);
+  const canFollow = myVaults.length > 0;
+  const openFollow = (r: LeaderboardRow) => { setTarget(r); setFollowerId(myVaults[0]?.vaultId ?? ''); setErr(null); };
 
   const pnlPct = (r: LeaderboardRow) => Number(r.netPnlScaled) / 10000;
 
@@ -35,10 +38,10 @@ export default function Leaderboard() {
   }, [leaderboard, sort]);
 
   const doFollow = async () => {
-    if (!target || !follower) return;
+    if (!target || !followerId) return;
     setBusy(true); setErr(null);
     try {
-      await follow(follower.vaultId, target.id, pct);
+      await follow(followerId, target.id, pct);
       setTarget(null);
     } catch (e: any) { setErr(e?.message ?? String(e)); } finally { setBusy(false); }
   };
@@ -98,7 +101,7 @@ export default function Leaderboard() {
                     {isMine ? (
                       <button onClick={() => nav(`/vault/${r.id}`)} className="p-2 rounded-full bg-alphyn-orange text-white hover:bg-alphyn-orangeDeep transition-all"><ArrowRight className="w-4 h-4" /></button>
                     ) : (
-                      <button disabled={!follower} onClick={() => { setTarget(r); setErr(null); }} className="px-4 py-1.5 text-xs font-bold rounded-lg bg-alphyn-surface border border-alphyn-surfaceBorder hover:border-alphyn-orange transition-all disabled:opacity-30 disabled:cursor-not-allowed">Follow</button>
+                      <button disabled={!canFollow} onClick={() => openFollow(r)} className="px-4 py-1.5 text-xs font-bold rounded-lg bg-alphyn-surface border border-alphyn-surfaceBorder hover:border-alphyn-orange transition-all disabled:opacity-30 disabled:cursor-not-allowed">Follow</button>
                     )}
                   </td>
                 </tr>
@@ -116,6 +119,12 @@ export default function Leaderboard() {
               <button onClick={() => setTarget(null)}><X className="w-5 h-5 text-alphyn-textMuted" /></button>
             </div>
             <p className="text-sm text-alphyn-textMuted">Record a public follow of <span className="font-mono">{target.id.slice(0, 10)}…</span> from your vault. Neither strategy is revealed.</p>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-alphyn-textMuted">Follow from</label>
+              <select value={followerId} onChange={(e) => setFollowerId(e.target.value)} className="w-full px-4 py-3 bg-background border border-alphyn-surfaceBorder rounded-xl font-medium focus:outline-none focus:border-alphyn-orange">
+                {myVaults.map((v) => <option key={v.vaultId} value={v.vaultId}>{v.name}</option>)}
+              </select>
+            </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm"><span className="text-alphyn-textMuted">Allocation to mirror</span><span className="font-mono font-bold text-alphyn-orange">{pct}%</span></div>
               <input type="range" min={1} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} className="w-full" style={{ accentColor: '#FF5E1A' }} />

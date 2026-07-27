@@ -15,8 +15,33 @@ function Home() {
   return <Navigate to={vaults.length > 0 ? '/dashboard' : '/create'} replace />;
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ maxWidth: 560, margin: '80px auto', padding: 24, fontFamily: 'Outfit, system-ui, sans-serif', textAlign: 'center' }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>Something went wrong</h1>
+          <p style={{ color: '#8A7D74', marginTop: 8 }}>{this.state.error.message}</p>
+          <button
+            onClick={() => location.reload()}
+            style={{ marginTop: 16, padding: '10px 18px', background: '#FF5E1A', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer' }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
+    <ErrorBoundary>
     <DappProvider>
       <HashRouter>
         <Routes>
@@ -34,5 +59,6 @@ export default function App() {
         </Routes>
       </HashRouter>
     </DappProvider>
+    </ErrorBoundary>
   );
 }

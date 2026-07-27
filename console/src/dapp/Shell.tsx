@@ -1,11 +1,12 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { useDapp } from './DappContext';
+import { NETWORK_ID } from '../providers';
 import Nav from './Nav';
 
 export default function Shell() {
-  const { phase, error, connect } = useDapp();
+  const { phase, error, connect, wrongNetwork } = useDapp();
 
   if (phase === 'connecting') {
     return (
@@ -39,6 +40,11 @@ export default function Shell() {
 
   return (
     <div className="min-h-screen bg-background text-alphyn-text font-sans">
+      {wrongNetwork && (
+        <div className="bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
+          <AlertTriangle className="w-4 h-4" /> Wrong network. Switch your wallet to {NETWORK_ID} to transact safely.
+        </div>
+      )}
       <Nav />
       <Outlet />
     </div>

@@ -16,6 +16,8 @@ export default function VaultDetail() {
   const { vaultById, runEpoch, closeVault } = useDapp();
   const v = vaultById(id!);
   const [showMenu, setShowMenu] = useState(false);
+  const [showClose, setShowClose] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
   const [running, setRunning] = useState(false);
   const [closing, setClosing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -38,9 +40,8 @@ export default function VaultDetail() {
     try { await runEpoch(v.vaultId); } catch (e: any) { setErr(e?.message ?? String(e)); } finally { setRunning(false); }
   };
   const onClose = async () => {
-    if (!confirm('Close this vault? It will be marked inactive on-chain.')) return;
     setClosing(true); setErr(null);
-    try { await closeVault(v.vaultId); nav('/dashboard'); } catch (e: any) { setErr(e?.message ?? String(e)); setClosing(false); }
+    try { await closeVault(v.vaultId); nav('/dashboard'); } catch (e: any) { setErr(e?.message ?? String(e)); setClosing(false); setShowClose(false); }
   };
 
   return (
@@ -80,8 +81,8 @@ export default function VaultDetail() {
                   <button onClick={() => { setShowMenu(false); nav('/settings'); }} className="w-full px-4 py-3 text-left text-sm font-bold hover:bg-alphyn-surfaceHover flex items-center gap-3">
                     <SettingsIcon className="w-4 h-4 text-alphyn-textMuted" /> Settings
                   </button>
-                  <button onClick={() => { setShowMenu(false); onClose(); }} disabled={closing} className="w-full px-4 py-3 text-left text-sm font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-3 disabled:opacity-50">
-                    <Lock className="w-4 h-4 text-red-500" /> {closing ? 'Closing…' : 'Close Vault'}
+                  <button onClick={() => { setShowMenu(false); setShowClose(true); setConfirmText(''); }} className="w-full px-4 py-3 text-left text-sm font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-3">
+                    <Lock className="w-4 h-4 text-red-500" /> Close Vault
                   </button>
                 </div>
               </>
@@ -169,6 +170,24 @@ export default function VaultDetail() {
           </div>
         </div>
       </div>
+
+      {showClose && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6" onClick={() => setShowClose(false)}>
+          <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-8 max-w-md w-full space-y-5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-black text-red-600">Close vault</h2>
+            <p className="text-sm text-alphyn-textMuted">This marks the vault inactive on-chain and cannot be undone. Type <span className="font-bold text-red-600">CONFIRM</span> to proceed.</p>
+            <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CONFIRM"
+              className="w-full px-4 py-3 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono focus:outline-none focus:border-red-500" />
+            {err && <p className="text-sm text-red-600 break-words">{err}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setShowClose(false)} className="flex-1 py-3 border border-alphyn-surfaceBorder font-bold rounded-xl hover:bg-alphyn-surfaceHover">Cancel</button>
+              <button onClick={onClose} disabled={confirmText !== 'CONFIRM' || closing} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:opacity-40 transition-all">
+                {closing ? 'Closing…' : 'Close vault'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
