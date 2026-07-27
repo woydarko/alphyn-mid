@@ -143,6 +143,15 @@ const explainTxError = (e: any): Error => {
 
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
+const sha256hex = async (s: string) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return toHex(new Uint8Array(buf));
+};
+const randSaltHex = () => {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return toHex(a);
+};
 const bigAlloc = (a: number[]): [bigint, bigint, bigint, bigint] =>
   [BigInt(a[0] ?? 0), BigInt(a[1] ?? 0), BigInt(a[2] ?? 0), BigInt(a[3] ?? 0)];
 
@@ -236,28 +245,29 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setError(null);
     setPhase('connecting');
-    // Prefer the local bridge when it is up: it executes with a wallet the
-    // current network still accepts, and needs no extension at all.
-    const bridge = await probeBridge();
-    if (bridge) {
-      setBridgeMode(true);
-      addrRef.current = 'bridge';
-      setContractAddress(bridge.contract);
-      // The bridge owns vault state; the poll effect populates it.
-      setPhase('ready');
-      return;
-    }
     try {
+      // Always connect the user's wallet first — it is the identity, and it signs
+      // each mint to derive that vault's secret (so the vault is theirs).
       const api = await connectWallet();
       apiRef.current = api;
-      const p = await buildProviders(api);
-      setProviders(p);
       addrRef.current = await readAddress(api);
-      keyRef.current = await deriveVaultKey(api);
       const net = await readNetwork(api);
       setWrongNetwork(net != null && net !== NETWORK_ID);
-      setContractAddress(localStorage.getItem(lsAddr()));
-      await loadVaults();
+
+      // If the local bridge is up it relays the transactions the v9 wallet cannot
+      // submit; otherwise fall back to submitting directly through the wallet.
+      const bridge = await probeBridge();
+      if (bridge) {
+        setBridgeMode(true);
+        setContractAddress(bridge.contract);
+        // vaults load via the poll effect
+      } else {
+        keyRef.current = await deriveVaultKey(api);
+        const p = await buildProviders(api);
+        setProviders(p);
+        setContractAddress(localStorage.getItem(lsAddr()));
+        await loadVaults();
+      }
       setPhase('ready');
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -343,7 +353,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     if (!bridgeMode) return;
     try {
       const rows = await bridgeFetch('/vaults');
-      setVaults(rows.map(mapBridgeVault));
+      const mine = rows.filter((r: any) => !r.owner || r.owner === addrRef.current);
+      setVaults(mine.map(mapBridgeVault));
     } catch {
       /* ignore */
     }
@@ -364,6 +375,18 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     async (s: Strategy, name: string): Promise<LocalVault> => {
       try {
       if (bridgeMode) {
+        // The user's wallet signs to authorize the mint and derive this vault's
+        // secret, so the vault (vaultId = hash(secret)) belongs to their key. The
+        // bridge only relays the transaction.
+        const salt = randSaltHex();
+        let secretHex = '';
+        let nonceHex = '';
+        const api = apiRef.current;
+        if (api && typeof api.signData === 'function') {
+          const sig = await api.signData(`alphyn-vault:${salt}`, { encoding: 'text', keyType: 'unshielded' });
+          secretHex = await sha256hex(`${sig.signature}:${salt}`);
+          nonceHex = await sha256hex(`${sig.signature}:${salt}:nonce`);
+        }
         const out = await bridgeFetch('/mint', {
           allocation: s.allocation,
           category: catOrdinal(s.category),
@@ -373,6 +396,9 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
           rebalanceTriggerPct: s.rebalanceTriggerPct,
           stopLossPct: s.stopLossPct,
           maxSlippageBps: s.maxSlippageBps,
+          secretHex,
+          nonceHex,
+          owner: addrRef.current,
         });
         const v = mapBridgeVault(out.vault);
         await refreshManagedVaults();

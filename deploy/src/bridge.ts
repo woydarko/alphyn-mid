@@ -42,6 +42,7 @@ interface Epoch { n: number; pnlBps: number; ts: number }
 interface VaultRec {
   vaultId: string;
   psId: string;
+  owner: string | null; // the user wallet address that authorized this vault
   secretHex: string;
   nonceHex: string;
   name: string;
@@ -73,6 +74,7 @@ const saveStore = (s: Store) => fs.writeFileSync(STORE, JSON.stringify(s, null, 
 // Public projection sent to the browser: no secrets.
 const pub = (r: VaultRec) => ({
   vaultId: r.vaultId,
+  owner: r.owner ?? null,
   name: r.name,
   category: r.category,
   allocation: r.allocation,
@@ -229,12 +231,16 @@ async function main() {
 
     'POST /mint': (body) =>
       serialized(async () => {
-        const { allocation, category, assetCount, name, epochDurationSeconds, rebalanceTriggerPct, stopLossPct, maxSlippageBps } = body;
+        const { allocation, category, assetCount, name, epochDurationSeconds, rebalanceTriggerPct, stopLossPct, maxSlippageBps, secretHex, nonceHex, owner } = body;
         if (!Array.isArray(allocation) || allocation.length !== 4) throw new Error('allocation must be [4]');
         const psId = `alphyn-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+        // The vault secret is derived from the USER's wallet signature and passed
+        // in, so the vault (vaultId = hash(secret)) belongs to their key. The
+        // operator only relays. Fall back to a random secret if none is supplied.
         const draft: VaultRec = {
-          vaultId: '', psId,
-          secretHex: toHex(rand32()), nonceHex: toHex(rand32()),
+          vaultId: '', psId, owner: owner ?? null,
+          secretHex: (secretHex as string) || toHex(rand32()),
+          nonceHex: (nonceHex as string) || toHex(rand32()),
           name: (name ?? '').trim() || 'Vault',
           category: Number(category), allocation, assetCount: Number(assetCount),
           epochDurationSeconds: Number(epochDurationSeconds ?? 3600),
