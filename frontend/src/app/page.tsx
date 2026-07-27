@@ -49,10 +49,21 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
   const { connected, connecting, connect } = useMidnightWallet();
   const [topVaults, setTopVaults] = useState<any[]>([]);
 
-  // Launching the app requires a connected wallet. If not connected, connect first
-  // (opens the wallet), and only then enter /app.
+  // Launching the app needs an executor. If the local bridge is up it runs the
+  // transactions (no extension needed), so go straight in. Otherwise require a
+  // connected wallet before entering /app.
   const launchApp = async () => {
     try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 1200);
+      const bridge = await fetch('http://localhost:6363/health', { signal: ctrl.signal })
+        .then((r) => r.ok)
+        .catch(() => false);
+      clearTimeout(t);
+      if (bridge) {
+        window.location.href = '/app';
+        return;
+      }
       if (!connected) await connect();
       window.location.href = '/app';
     } catch {
@@ -132,7 +143,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
                   onClick={launchApp} disabled={connecting}
                   className="w-full sm:w-auto px-10 py-5 bg-[#FF5E1A] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-xl shadow-orange-500/20"
                 >
-                  {connected ? "Launch App" : connecting ? "Connecting..." : "Connect & Launch"} <ArrowRight className="w-5 h-5" />
+                  {connecting ? "Connecting..." : "Launch App"} <ArrowRight className="w-5 h-5" />
                 </button>
                 <a
                   href="#how-it-works"
@@ -353,7 +364,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
             onClick={launchApp} disabled={connecting}
             className="px-12 py-6 bg-[#FF5E1A] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-2xl shadow-orange-500/30 mt-8"
           >
-            {connected ? "Launch App" : connecting ? "Connecting..." : "Connect & Launch"} <ArrowRight className="w-6 h-6" />
+            {connecting ? "Connecting..." : "Launch App"} <ArrowRight className="w-6 h-6" />
           </button>
         </section>
       </main>
