@@ -43,9 +43,11 @@ MIDNIGHT_NETWORK=preview npm run bridge
 
 The app auto-detects it at `localhost:6363` and shows a "Local executor active" banner. Verified live through the UI: mint tx `00ca0c00b277…`, rebalance tx `00fb8600685a…`, both visible in the on-chain leaderboard.
 
-## Why epochs run from the client
+## Epochs run automatically (the keeper)
 
-Only the vault owner holds the private allocation witness. A server-side keeper could not run a rebalance without being handed the strategy, which would defeat the point. So the epoch proof is generated where the secret lives: in the owner's browser. The vault page has an auto-run toggle that fires an epoch on the strategy's cadence while the page is open.
+Like the original Alphyn, epochs are not manual. The bridge doubles as a **keeper**: a background loop that runs one rebalance per active vault on a fixed cadence, using real price returns as the oracle. The browser just reflects it — the vault page shows "Keeper is running epochs automatically" and the chart grows on its own.
+
+The difference from the old design is where trust sits. The original keeper ran inside a server-side TEE that held every user's strategy. Here the keeper is the operator wallet on the user's own machine, and the private allocation witnesses live next to it in `bridge-vaults.json`. Only the party that already owns the secret runs the proof; nothing private is handed to a remote operator, and on-chain only the commitment and aggregates are ever public. Cadence is `KEEPER_INTERVAL_SECONDS` (default 60 for demos). A manual "Run epoch" button is still there to trigger one on demand.
 
 ## Privacy Model
 

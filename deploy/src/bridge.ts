@@ -1,14 +1,18 @@
-// Local execution bridge: the browser UI talks to this instead of the wallet
-// extension while the extension is on the v9 transaction line and the public
-// compiler is still on v8.
+// Local execution bridge + keeper for Alphyn.
 //
-// It mirrors the old Alphyn architecture: a long-running operator wallet (the
-// deploy seed) executes createVault / rebalance / follow / close, and the
-// browser is pure UI. Vault secrets are generated and kept HERE, on the user's
-// own machine, in bridge-vaults.json next to this file. Nothing private ever
-// leaves localhost.
+// Mirrors the original Alphyn architecture: a long-running operator wallet runs
+// the on-chain work and the browser is pure UI. Two roles in one process:
+//   1. Executor  — HTTP API the browser calls to mint / rename / fund / close.
+//   2. Keeper    — a background loop that runs an epoch (rebalance) for every
+//                  active vault on a fixed cadence, exactly like the old keeper.
 //
-// Run: MIDNIGHT_NETWORK=preview npx tsx src/bridge.ts   (proof server on :6300)
+// The extensions have moved to the v9 transaction line the public compiler
+// cannot target yet; the node still accepts the v8 line this wallet speaks. The
+// vault secrets live HERE, on the user's own machine (bridge-vaults.json), so
+// this is self-custody, not a third-party operator. Nothing private is exposed
+// on-chain beyond the commitment and aggregates.
+//
+// Run: cd deploy && MIDNIGHT_NETWORK=preview npm run bridge   (proof server :6300)
 
 import 'dotenv/config';
 import http from 'node:http';
@@ -23,6 +27,10 @@ import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import { Contract as AlphynContract, ledger } from '../managed/alphyn/contract/index.js';
 
 const PORT = Number(process.env.BRIDGE_PORT ?? 6363);
+// Demo-friendly keeper cadence: one epoch per active vault every this many
+// seconds, regardless of the vault's nominal epoch duration. Set higher in
+// production, or honor per-vault cadence.
+const KEEPER_SECONDS = Number(process.env.KEEPER_INTERVAL_SECONDS ?? 60);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STORE = path.resolve(here, '..', 'bridge-vaults.json');
 
@@ -30,13 +38,26 @@ const toHex = (u: Uint8Array) => Buffer.from(u).toString('hex');
 const fromHex = (h: string) => Uint8Array.from(Buffer.from(h.replace(/^0x/, ''), 'hex'));
 const rand32 = () => Uint8Array.from(bip39.mnemonicToSeedSync(bip39.generateMnemonic()).subarray(0, 32));
 
+interface Epoch { n: number; pnlBps: number; ts: number }
 interface VaultRec {
+  vaultId: string;
   psId: string;
   secretHex: string;
   nonceHex: string;
-  allocation: number[];
+  name: string;
   category: number;
+  allocation: number[];
   assetCount: number;
+  epochDurationSeconds: number;
+  rebalanceTriggerPct: number;
+  stopLossPct: number;
+  maxSlippageBps: number;
+  principal: number;
+  epochs: Epoch[];
+  following: string | null;
+  active: boolean;
+  createdAt: number;
+  lastEpochTs: number;
 }
 type Store = Record<string, VaultRec>;
 
@@ -49,17 +70,57 @@ const loadStore = (): Store => {
 };
 const saveStore = (s: Store) => fs.writeFileSync(STORE, JSON.stringify(s, null, 2));
 
+// Public projection sent to the browser: no secrets.
+const pub = (r: VaultRec) => ({
+  vaultId: r.vaultId,
+  name: r.name,
+  category: r.category,
+  allocation: r.allocation,
+  assetCount: r.assetCount,
+  epochDurationSeconds: r.epochDurationSeconds,
+  rebalanceTriggerPct: r.rebalanceTriggerPct,
+  stopLossPct: r.stopLossPct,
+  maxSlippageBps: r.maxSlippageBps,
+  principal: r.principal,
+  epochs: r.epochs,
+  following: r.following,
+  active: r.active,
+  createdAt: r.createdAt,
+});
+
 const witnesses = {
   localSecretKey: ({ privateState }: any): [any, Uint8Array] => [privateState, privateState.secretKey],
   allocation: ({ privateState }: any): [any, bigint[]] => [privateState, [...privateState.allocation]],
   allocationNonce: ({ privateState }: any): [any, Uint8Array] => [privateState, privateState.nonce],
 };
-
 const psFromRec = (r: VaultRec) => ({
   secretKey: fromHex(r.secretHex),
   allocation: r.allocation.map(BigInt) as [bigint, bigint, bigint, bigint],
   nonce: fromHex(r.nonceHex),
 });
+
+// Real per-asset 24h returns → up/down bps, clamped. Order [USDC, ETH, BTC, ARB].
+const ORACLE_IDS = ['usd-coin', 'ethereum', 'bitcoin', 'arbitrum'];
+async function fetchOracle(): Promise<{ up: number[]; down: number[] }> {
+  const flat = { up: [0, 0, 0, 0], down: [0, 0, 0, 0] };
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ORACLE_IDS.join(',')}&vs_currencies=usd&include_24hr_change=true`;
+    const res = await fetch(url);
+    if (!res.ok) return flat;
+    const data: any = await res.json();
+    const up = [0, 0, 0, 0];
+    const down = [0, 0, 0, 0];
+    ORACLE_IDS.forEach((id, i) => {
+      const bps = (data[id]?.usd_24h_change ?? 0) * 100;
+      const c = Math.max(0, Math.min(2000, Math.round(Math.abs(bps))));
+      if (bps >= 0) up[i] = c;
+      else down[i] = c;
+    });
+    return { up, down };
+  } catch {
+    return flat;
+  }
+}
 
 async function main() {
   const config = resolveConfig();
@@ -77,7 +138,6 @@ async function main() {
     CompiledContract.withWitnesses(witnesses as any),
     CompiledContract.withCompiledFileAssets(ZK_CONFIG_PATH),
   );
-
   const contracts = new Map<string, any>();
   const joinAs = async (psId: string, ps: any) => {
     let c = contracts.get(psId);
@@ -112,7 +172,7 @@ async function main() {
     return rows;
   };
 
-  // All tx-producing ops share one wallet, so serialize them.
+  // One wallet ⇒ serialize every tx-producing op (keeper and API share it).
   let chain: Promise<unknown> = Promise.resolve();
   const serialized = <T>(fn: () => Promise<T>): Promise<T> => {
     const next = chain.then(fn, fn);
@@ -120,70 +180,136 @@ async function main() {
     return next;
   };
 
+  const runEpochFor = (r: VaultRec) =>
+    serialized(async () => {
+      const c = await joinAs(r.psId, psFromRec(r));
+      const { up, down } = await fetchOracle();
+      const tx = await c.callTx.rebalance(up.map(BigInt), down.map(BigInt));
+      const num = r.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
+      const pnlBps = Math.round(num / 100);
+      const store = loadStore();
+      const cur = store[r.vaultId];
+      if (cur) {
+        cur.epochs.push({ n: cur.epochs.length + 1, pnlBps, ts: Date.now() });
+        cur.lastEpochTs = Date.now();
+        saveStore(store);
+      }
+      return tx?.public?.txId ?? null;
+    });
+
+  // ── Keeper loop ──────────────────────────────────────────────────────────
+  let keeperBusy = false;
+  const keeperTick = async () => {
+    if (keeperBusy) return;
+    keeperBusy = true;
+    try {
+      const store = loadStore();
+      const now = Date.now();
+      for (const r of Object.values(store)) {
+        if (!r.active) continue;
+        if (now - (r.lastEpochTs ?? 0) < KEEPER_SECONDS * 1000) continue;
+        try {
+          const tx = await runEpochFor(r);
+          console.log(`⏱  keeper epoch ${r.vaultId.slice(0, 10)} tx ${tx ?? 'ok'}`);
+        } catch (e: any) {
+          console.error(`⏱  keeper epoch failed ${r.vaultId.slice(0, 10)}:`, e?.message ?? e);
+        }
+      }
+    } finally {
+      keeperBusy = false;
+    }
+  };
+  setInterval(keeperTick, Math.max(10, Math.floor(KEEPER_SECONDS / 4)) * 1000);
+  console.log(`▶ Keeper armed: one epoch per active vault every ~${KEEPER_SECONDS}s.`);
+
   const handlers: Record<string, (body: any) => Promise<any>> = {
-    'GET /health': async () => ({ ok: true, contract: addr, mode: 'bridge' }),
+    'GET /health': async () => ({ ok: true, contract: addr, mode: 'bridge', keeperSeconds: KEEPER_SECONDS }),
     'GET /leaderboard': async () => leaderboardRows(),
+    'GET /vaults': async () => Object.values(loadStore()).map(pub),
 
     'POST /mint': (body) =>
       serialized(async () => {
-        const { allocation, category, assetCount } = body;
+        const { allocation, category, assetCount, name, epochDurationSeconds, rebalanceTriggerPct, stopLossPct, maxSlippageBps } = body;
         if (!Array.isArray(allocation) || allocation.length !== 4) throw new Error('allocation must be [4]');
-        const rec: VaultRec = {
-          psId: `alphyn-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-          secretHex: toHex(rand32()),
-          nonceHex: toHex(rand32()),
-          allocation,
-          category: Number(category),
-          assetCount: Number(assetCount),
+        const psId = `alphyn-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+        const draft: VaultRec = {
+          vaultId: '', psId,
+          secretHex: toHex(rand32()), nonceHex: toHex(rand32()),
+          name: (name ?? '').trim() || 'Vault',
+          category: Number(category), allocation, assetCount: Number(assetCount),
+          epochDurationSeconds: Number(epochDurationSeconds ?? 3600),
+          rebalanceTriggerPct: Number(rebalanceTriggerPct ?? 4),
+          stopLossPct: Number(stopLossPct ?? 12),
+          maxSlippageBps: Number(maxSlippageBps ?? 50),
+          principal: 0, epochs: [], following: null, active: true,
+          createdAt: Date.now(), lastEpochTs: 0,
         };
-        const c = await joinAs(rec.psId, psFromRec(rec));
+        const c = await joinAs(psId, psFromRec(draft));
         const before = new Set((await leaderboardRows()).map((r) => r.id));
-        const tx = await c.callTx.createVault(rec.category, BigInt(rec.assetCount));
+        const tx = await c.callTx.createVault(draft.category, BigInt(draft.assetCount));
         const after = await leaderboardRows();
-        const vaultId = after.find((r) => !before.has(r.id))?.id ?? rec.psId;
+        const vaultId = after.find((r) => !before.has(r.id))?.id ?? psId;
+        draft.vaultId = vaultId;
+        if (!draft.name || draft.name === 'Vault') draft.name = `Vault ${vaultId.slice(0, 6)}`;
         const store = loadStore();
-        store[vaultId] = rec;
+        store[vaultId] = draft;
         saveStore(store);
         console.log('✓ mint vault', vaultId.slice(0, 12), 'tx', tx?.public?.txId ?? 'ok');
-        return { vaultId, txId: tx?.public?.txId ?? null, leaderboard: after };
+        return { vault: pub(draft), txId: tx?.public?.txId ?? null };
       }),
 
-    'POST /epoch': (body) =>
-      serialized(async () => {
-        const { vaultId, up, down } = body;
-        const rec = loadStore()[vaultId];
-        if (!rec) throw new Error('unknown vault (not managed by this bridge)');
-        const c = await joinAs(rec.psId, psFromRec(rec));
-        const tx = await c.callTx.rebalance((up ?? [0, 0, 0, 0]).map(BigInt), (down ?? [0, 0, 0, 0]).map(BigInt));
-        console.log('✓ epoch vault', vaultId.slice(0, 12), 'tx', tx?.public?.txId ?? 'ok');
-        return { txId: tx?.public?.txId ?? null };
-      }),
+    'POST /epoch': async (body) => {
+      const r = loadStore()[body.vaultId];
+      if (!r) throw new Error('unknown vault');
+      const txId = await runEpochFor(r);
+      return { txId };
+    },
+
+    'POST /principal': async (body) => {
+      const store = loadStore();
+      const r = store[body.vaultId];
+      if (!r) throw new Error('unknown vault');
+      r.principal = Math.max(0, Number(body.amount) || 0);
+      saveStore(store);
+      return { ok: true, principal: r.principal };
+    },
+    'POST /rename': async (body) => {
+      const store = loadStore();
+      const r = store[body.vaultId];
+      if (!r) throw new Error('unknown vault');
+      r.name = String(body.name ?? r.name).slice(0, 60);
+      saveStore(store);
+      return { ok: true };
+    },
 
     'POST /follow': (body) =>
       serialized(async () => {
-        const { vaultId, targetId, pct } = body;
-        const rec = loadStore()[vaultId];
-        if (!rec) throw new Error('unknown vault (not managed by this bridge)');
-        const c = await joinAs(rec.psId, psFromRec(rec));
-        const tx = await c.callTx.follow(fromHex(targetId), BigInt(pct ?? 50));
+        const r = loadStore()[body.vaultId];
+        if (!r) throw new Error('unknown vault');
+        const c = await joinAs(r.psId, psFromRec(r));
+        const tx = await c.callTx.follow(fromHex(body.targetId), BigInt(body.pct ?? 50));
+        const store = loadStore();
+        if (store[body.vaultId]) { store[body.vaultId].following = body.targetId; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };
       }),
-
     'POST /unfollow': (body) =>
       serialized(async () => {
-        const rec = loadStore()[body.vaultId];
-        if (!rec) throw new Error('unknown vault (not managed by this bridge)');
-        const c = await joinAs(rec.psId, psFromRec(rec));
+        const r = loadStore()[body.vaultId];
+        if (!r) throw new Error('unknown vault');
+        const c = await joinAs(r.psId, psFromRec(r));
         const tx = await c.callTx.unfollow();
+        const store = loadStore();
+        if (store[body.vaultId]) { store[body.vaultId].following = null; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };
       }),
-
     'POST /close': (body) =>
       serialized(async () => {
-        const rec = loadStore()[body.vaultId];
-        if (!rec) throw new Error('unknown vault (not managed by this bridge)');
-        const c = await joinAs(rec.psId, psFromRec(rec));
+        const r = loadStore()[body.vaultId];
+        if (!r) throw new Error('unknown vault');
+        const c = await joinAs(r.psId, psFromRec(r));
         const tx = await c.callTx.closeVault();
+        const store = loadStore();
+        if (store[body.vaultId]) { store[body.vaultId].active = false; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };
       }),
   };
@@ -204,8 +330,7 @@ async function main() {
     req.on('data', (d) => (raw += d));
     req.on('end', async () => {
       try {
-        const body = raw ? JSON.parse(raw) : {};
-        const out = await h(body);
+        const out = await h(raw ? JSON.parse(raw) : {});
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
       } catch (e: any) {
         console.error('✗', key, e?.message ?? e);
@@ -213,7 +338,6 @@ async function main() {
       }
     });
   });
-
   server.listen(PORT, () => console.log(`▶ Alphyn bridge listening on http://localhost:${PORT}`));
 }
 

@@ -243,8 +243,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       setBridgeMode(true);
       addrRef.current = 'bridge';
       setContractAddress(bridge.contract);
-      localStorage.setItem(lsAddr(), bridge.contract);
-      await loadVaults();
+      // The bridge owns vault state; the poll effect populates it.
       setPhase('ready');
       return;
     }
@@ -313,6 +312,54 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     refreshLeaderboard();
   }, [refreshLeaderboard]);
 
+  // In bridge mode the bridge is the source of truth for the user's vaults
+  // (it runs the keeper). Map its public projection to LocalVault.
+  const CATS: Category[] = ['conservative', 'balanced', 'aggressive'];
+  const mapBridgeVault = useCallback(
+    (b: any): LocalVault => ({
+      vaultId: b.vaultId,
+      contractAddress: contractAddress ?? 'bridge',
+      name: b.name,
+      category: CATS[b.category] ?? 'aggressive',
+      allocation: b.allocation ?? [0, 0, 0, 0],
+      rebalanceTriggerPct: b.rebalanceTriggerPct ?? 4,
+      stopLossPct: b.stopLossPct ?? 12,
+      epochDurationSeconds: b.epochDurationSeconds ?? 3600,
+      maxSlippageBps: b.maxSlippageBps ?? 50,
+      source: 'local',
+      principal: b.principal ?? 0,
+      createdAt: b.createdAt ?? Date.now(),
+      epochs: b.epochs ?? [],
+      secretHex: '',
+      nonceHex: '',
+      following: b.following ?? null,
+      active: b.active,
+      managed: true,
+    }),
+    [contractAddress],
+  );
+
+  const refreshManagedVaults = useCallback(async () => {
+    if (!bridgeMode) return;
+    try {
+      const rows = await bridgeFetch('/vaults');
+      setVaults(rows.map(mapBridgeVault));
+    } catch {
+      /* ignore */
+    }
+  }, [bridgeMode, mapBridgeVault]);
+
+  // Poll the bridge so keeper-run epochs (and their PnL) appear on their own.
+  useEffect(() => {
+    if (!bridgeMode) return;
+    refreshManagedVaults();
+    const t = setInterval(() => {
+      refreshManagedVaults();
+      refreshLeaderboard();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [bridgeMode, refreshManagedVaults, refreshLeaderboard]);
+
   const mint = useCallback(
     async (s: Strategy, name: string): Promise<LocalVault> => {
       try {
@@ -321,28 +368,14 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
           allocation: s.allocation,
           category: catOrdinal(s.category),
           assetCount: s.assetCount,
-        });
-        const v: LocalVault = {
-          vaultId: out.vaultId,
-          contractAddress: contractAddress ?? 'bridge',
-          name: name.trim() || `Vault ${String(out.vaultId).slice(0, 6)}`,
-          category: s.category,
-          allocation: s.allocation,
+          name,
+          epochDurationSeconds: s.epochDurationSeconds,
           rebalanceTriggerPct: s.rebalanceTriggerPct,
           stopLossPct: s.stopLossPct,
-          epochDurationSeconds: s.epochDurationSeconds,
           maxSlippageBps: s.maxSlippageBps,
-          source: s.source,
-          principal: 0,
-          createdAt: Date.now(),
-          epochs: [],
-          secretHex: '',
-          nonceHex: '',
-          following: null,
-          active: true,
-          managed: true,
-        };
-        await persist([...vaults, v]);
+        });
+        const v = mapBridgeVault(out.vault);
+        await refreshManagedVaults();
         refreshLeaderboard();
         return v;
       }
@@ -397,20 +430,23 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         throw explainTxError(e);
       }
     },
-    [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard],
+    [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard, mapBridgeVault, refreshManagedVaults],
   );
 
   const runEpoch = useCallback(
     async (vaultId: string) => {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-        const { up, down } = await fetchOracle();
         if (v.managed) {
-          await bridgeFetch('/epoch', { vaultId, up, down });
-        } else {
-          const contract = await joinFor(v);
-          await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+          // The bridge picks the oracle, runs the tx, and records the epoch.
+          await bridgeFetch('/epoch', { vaultId });
+          await refreshManagedVaults();
+          refreshLeaderboard();
+          return;
         }
+        const { up, down } = await fetchOracle();
+        const contract = await joinFor(v);
+        await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
         const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
         const pnlBps = Math.round(num / 100);
         const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
@@ -420,20 +456,30 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
   );
 
   const setPrincipal = useCallback(
     (vaultId: string, amount: number) => {
+      const v = vaults.find((x) => x.vaultId === vaultId);
+      if (v?.managed) {
+        bridgeFetch('/principal', { vaultId, amount }).then(refreshManagedVaults).catch(() => {});
+        return;
+      }
       persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: amount } : x)));
     },
-    [vaults, persist],
+    [vaults, persist, refreshManagedVaults],
   );
   const renameVault = useCallback(
     (vaultId: string, name: string) => {
+      const v = vaults.find((x) => x.vaultId === vaultId);
+      if (v?.managed) {
+        bridgeFetch('/rename', { vaultId, name }).then(refreshManagedVaults).catch(() => {});
+        return;
+      }
       persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, name } : x)));
     },
-    [vaults, persist],
+    [vaults, persist, refreshManagedVaults],
   );
 
   const follow = useCallback(
@@ -442,17 +488,19 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
         if (v.managed) {
           await bridgeFetch('/follow', { vaultId, targetId: targetId.replace(/^0x/, ''), pct });
-        } else {
-          const contract = await joinFor(v);
-          await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
+          await refreshManagedVaults();
+          refreshLeaderboard();
+          return;
         }
+        const contract = await joinFor(v);
+        await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: targetId } : x)));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
   );
   const unfollow = useCallback(
     async (vaultId: string) => {
@@ -460,17 +508,19 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
         if (v.managed) {
           await bridgeFetch('/unfollow', { vaultId });
-        } else {
-          const contract = await joinFor(v);
-          await contract.callTx.unfollow();
+          await refreshManagedVaults();
+          refreshLeaderboard();
+          return;
         }
+        const contract = await joinFor(v);
+        await contract.callTx.unfollow();
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: null } : x)));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
   );
   const closeVault = useCallback(
     async (vaultId: string) => {
@@ -478,17 +528,19 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
         if (v.managed) {
           await bridgeFetch('/close', { vaultId });
-        } else {
-          const contract = await joinFor(v);
-          await contract.callTx.closeVault();
+          await refreshManagedVaults();
+          refreshLeaderboard();
+          return;
         }
+        const contract = await joinFor(v);
+        await contract.callTx.closeVault();
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, active: false } : x)));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
   );
 
   const value: DappValue = {
