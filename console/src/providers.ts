@@ -7,11 +7,16 @@ import { Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider';
 import semver from 'semver';
 
 const COMPATIBLE_CONNECTOR = '4.x';
 export const NETWORK_ID = 'preview';
+
+// The ledger/protocol layer keeps a global network id that MUST be set before any
+// transaction serialization or contract call. Set it eagerly on import.
+setNetworkId(NETWORK_ID);
 
 // Recognised wallet connector ids, tried first so a stray injected object cannot
 // shadow the real wallet. Unknown ids are still allowed as a last resort.
