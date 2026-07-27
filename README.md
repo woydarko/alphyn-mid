@@ -30,9 +30,18 @@ Midway through this build, Preview and the browser wallets moved to the new v9 t
 
 What this means in practice:
 
-- Everything up to submission works and is verifiable here: the contract compiles, all 24 tests pass, real ZK proofs are generated in the browser, and the full product flow runs end to end.
-- A live submit from a v9 wallet is rejected by the node with a format error. The app detects this and explains it instead of failing silently.
-- The deployment recorded above was made and verified while Preview still accepted v8. When Midnight ships the v9 compiler, this repo migrates by bumping versions and recompiling, with no design changes.
+- The browser extensions auto-updated to v9, so a submit through them is rejected with a format error. The app detects this and explains it instead of failing silently.
+- The node itself still accepts v8 transactions. So the project ships a local execution bridge: a small service that holds a headless operator wallet on the v8 line and executes every circuit call. With the bridge running, the whole product works live on Preview today, end to end, from the same UI. This mirrors the original Alphyn architecture, where a backend runner executed on-chain while the frontend stayed pure UI.
+- When Midnight ships the v9 compiler, this repo migrates by bumping versions and recompiling, and the extension path takes over again with no design changes.
+
+Run the bridge (proof server 8.0.3 on :6300, seed in `deploy/.env`):
+
+```bash
+cd deploy
+MIDNIGHT_NETWORK=preview npm run bridge
+```
+
+The app auto-detects it at `localhost:6363` and shows a "Local executor active" banner. Verified live through the UI: mint tx `00ca0c00b277…`, rebalance tx `00fb8600685a…`, both visible in the on-chain leaderboard.
 
 ## Why epochs run from the client
 

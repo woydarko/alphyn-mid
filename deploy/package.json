@@ -6,7 +6,9 @@
   "description": "Deploy the Alphyn Compact contract to Midnight Preprod",
   "scripts": {
     "derive": "tsx src/derive.ts",
-    "deploy": "tsx src/deploy.ts"
+    "deploy": "tsx src/deploy.ts",
+    "interact": "tsx src/interact.ts",
+    "bridge": "tsx src/bridge.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "2.5.0",

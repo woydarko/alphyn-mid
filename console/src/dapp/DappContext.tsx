@@ -19,6 +19,36 @@ import { fetchOracle } from './priceFeed';
 
 export type Category = 'conservative' | 'balanced' | 'aggressive';
 
+// Local execution bridge (deploy/src/bridge.ts). When it is running, all
+// on-chain ops go through the operator wallet there instead of the browser
+// extension — the extension moved to the v9 tx line the public compiler cannot
+// target yet, while the bridge's headless v8 wallet still submits fine.
+const BRIDGE = 'http://localhost:6363';
+const bridgeFetch = async (path: string, body?: unknown) => {
+  const res = await fetch(`${BRIDGE}${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error ?? `bridge ${path} failed (${res.status})`);
+  return data;
+};
+const probeBridge = async (): Promise<{ contract: string } | null> => {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const res = await fetch(`${BRIDGE}/health`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.ok ? data : null;
+  } catch {
+    return null;
+  }
+};
+const catOrdinal = (c: Category) => (c === 'conservative' ? 0 : c === 'balanced' ? 1 : 2);
+
 export interface LocalVault {
   vaultId: string;
   contractAddress: string;
@@ -38,6 +68,7 @@ export interface LocalVault {
   following: string | null;
   active: boolean;
   locked?: boolean; // secrets not available at rest (no wallet signing) → read-only
+  managed?: boolean; // secrets live in the local bridge, not in this browser
 }
 
 // What is written to disk. The private fields live only inside `sealed`.
@@ -57,6 +88,8 @@ interface VaultRecord {
   following: string | null;
   active: boolean;
   sealed: Sealed | null;
+  managed?: boolean;
+  allocationPlain?: number[]; // bridge-managed vaults: kept for display; secret stays in the bridge
 }
 interface SecretPart {
   secretHex: string;
@@ -71,6 +104,7 @@ interface DappValue {
   error: string | null;
   wrongNetwork: boolean;
   sealAvailable: boolean;
+  bridgeMode: boolean;
   connect: () => Promise<void>;
   vaults: LocalVault[];
   vaultById: (id: string) => LocalVault | undefined;
@@ -139,6 +173,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>('connecting');
   const [error, setError] = useState<string | null>(null);
   const [wrongNetwork, setWrongNetwork] = useState(false);
+  const [bridgeMode, setBridgeMode] = useState(false);
   const [providers, setProviders] = useState<any>(null);
   const [vaults, setVaults] = useState<LocalVault[]>([]);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
@@ -157,12 +192,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     const records: VaultRecord[] = [];
     for (const v of next) {
       let sealed: Sealed | null = null;
-      if (key && !v.locked) {
+      if (!v.managed && key && !v.locked) {
         const part: SecretPart = { secretHex: v.secretHex, nonceHex: v.nonceHex, allocation: v.allocation };
         sealed = await seal(key, part);
       }
       const { secretHex, nonceHex, allocation, locked, ...pub } = v;
-      records.push({ ...pub, sealed });
+      records.push({ ...pub, sealed, allocationPlain: v.managed ? allocation : undefined });
     }
     localStorage.setItem(lsVaults(), JSON.stringify(records));
   }, []);
@@ -179,6 +214,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     const key = keyRef.current;
     const out: LocalVault[] = [];
     for (const r of records) {
+      if (r.managed) {
+        // Secrets live in the local bridge; the browser only needs the public
+        // shape plus the allocation for display and notional math.
+        out.push({ ...r, secretHex: '', nonceHex: '', allocation: r.allocationPlain ?? [0, 0, 0, 0], locked: false });
+        continue;
+      }
       let secret: SecretPart | null = null;
       if (key && r.sealed) secret = await unseal<SecretPart>(key, r.sealed);
       out.push({
@@ -195,6 +236,18 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setError(null);
     setPhase('connecting');
+    // Prefer the local bridge when it is up: it executes with a wallet the
+    // current network still accepts, and needs no extension at all.
+    const bridge = await probeBridge();
+    if (bridge) {
+      setBridgeMode(true);
+      addrRef.current = 'bridge';
+      setContractAddress(bridge.contract);
+      localStorage.setItem(lsAddr(), bridge.contract);
+      await loadVaults();
+      setPhase('ready');
+      return;
+    }
     try {
       const api = await connectWallet();
       apiRef.current = api;
@@ -223,18 +276,38 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const joinFor = (v: LocalVault) => joinVaultContract(providers, v.contractAddress, privateStateFor(v));
   const requireUnlocked = (v: LocalVault | undefined) => {
     if (!v) throw new Error('vault not found');
+    if (v.managed) return v; // the bridge holds its secrets
     if (v.locked || !v.secretHex) throw new Error('This vault is locked. Reconnect a wallet that can sign to unlock it.');
     return v;
   };
 
   const refreshLeaderboard = useCallback(async () => {
+    if (bridgeMode) {
+      try {
+        const rows = await bridgeFetch('/leaderboard');
+        setLeaderboard(
+          rows.map((r: any) => ({
+            id: r.id,
+            category: r.category,
+            assetCount: BigInt(r.assetCount),
+            epochCount: BigInt(r.epochCount),
+            netPnlScaled: BigInt(r.netPnlScaled),
+            followers: BigInt(r.followers),
+            active: r.active,
+          })),
+        );
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     if (!providers || !contractAddress) return;
     try {
       setLeaderboard(await readLeaderboard(providers, contractAddress));
     } catch {
       /* ignore */
     }
-  }, [providers, contractAddress]);
+  }, [bridgeMode, providers, contractAddress]);
 
   useEffect(() => {
     refreshLeaderboard();
@@ -243,6 +316,36 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const mint = useCallback(
     async (s: Strategy, name: string): Promise<LocalVault> => {
       try {
+      if (bridgeMode) {
+        const out = await bridgeFetch('/mint', {
+          allocation: s.allocation,
+          category: catOrdinal(s.category),
+          assetCount: s.assetCount,
+        });
+        const v: LocalVault = {
+          vaultId: out.vaultId,
+          contractAddress: contractAddress ?? 'bridge',
+          name: name.trim() || `Vault ${String(out.vaultId).slice(0, 6)}`,
+          category: s.category,
+          allocation: s.allocation,
+          rebalanceTriggerPct: s.rebalanceTriggerPct,
+          stopLossPct: s.stopLossPct,
+          epochDurationSeconds: s.epochDurationSeconds,
+          maxSlippageBps: s.maxSlippageBps,
+          source: s.source,
+          principal: 0,
+          createdAt: Date.now(),
+          epochs: [],
+          secretHex: '',
+          nonceHex: '',
+          following: null,
+          active: true,
+          managed: true,
+        };
+        await persist([...vaults, v]);
+        refreshLeaderboard();
+        return v;
+      }
       const secret = rand32();
       const nonce = rand32();
       const ps = createAlphynPrivateState(secret, bigAlloc(s.allocation), nonce);
@@ -294,16 +397,20 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         throw explainTxError(e);
       }
     },
-    [providers, contractAddress, vaults, persist],
+    [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard],
   );
 
   const runEpoch = useCallback(
     async (vaultId: string) => {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-        const contract = await joinFor(v);
         const { up, down } = await fetchOracle();
-        await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        if (v.managed) {
+          await bridgeFetch('/epoch', { vaultId, up, down });
+        } else {
+          const contract = await joinFor(v);
+          await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        }
         const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
         const pnlBps = Math.round(num / 100);
         const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
@@ -333,8 +440,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     async (vaultId: string, targetId: string, pct: number) => {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-        const contract = await joinFor(v);
-        await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
+        if (v.managed) {
+          await bridgeFetch('/follow', { vaultId, targetId: targetId.replace(/^0x/, ''), pct });
+        } else {
+          const contract = await joinFor(v);
+          await cvFollow(contract, fromHex(targetId.replace(/^0x/, '')), BigInt(pct));
+        }
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: targetId } : x)));
         refreshLeaderboard();
       } catch (e) {
@@ -347,8 +458,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     async (vaultId: string) => {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-        const contract = await joinFor(v);
-        await contract.callTx.unfollow();
+        if (v.managed) {
+          await bridgeFetch('/unfollow', { vaultId });
+        } else {
+          const contract = await joinFor(v);
+          await contract.callTx.unfollow();
+        }
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, following: null } : x)));
         refreshLeaderboard();
       } catch (e) {
@@ -361,8 +476,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     async (vaultId: string) => {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
-        const contract = await joinFor(v);
-        await contract.callTx.closeVault();
+        if (v.managed) {
+          await bridgeFetch('/close', { vaultId });
+        } else {
+          const contract = await joinFor(v);
+          await contract.callTx.closeVault();
+        }
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, active: false } : x)));
         refreshLeaderboard();
       } catch (e) {
@@ -377,6 +496,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     error,
     wrongNetwork,
     sealAvailable: !!keyRef.current,
+    bridgeMode,
     connect,
     vaults,
     vaultById: (id) => vaults.find((v) => v.vaultId === id),

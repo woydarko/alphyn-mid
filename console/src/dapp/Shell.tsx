@@ -6,7 +6,7 @@ import { NETWORK_ID } from '../providers';
 import Nav from './Nav';
 
 export default function Shell() {
-  const { phase, error, connect, wrongNetwork } = useDapp();
+  const { phase, error, connect, wrongNetwork, bridgeMode } = useDapp();
 
   if (phase === 'connecting') {
     return (
@@ -40,6 +40,11 @@ export default function Shell() {
 
   return (
     <div className="min-h-screen bg-background text-alphyn-text font-sans">
+      {bridgeMode && (
+        <div className="bg-green-500/10 border-b border-green-500/20 text-green-700 text-xs font-bold px-6 py-2 text-center">
+          Local executor active: transactions run through your operator wallet on this machine.
+        </div>
+      )}
       {wrongNetwork && (
         <div className="bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4" /> Wrong network. Switch your wallet to {NETWORK_ID} to transact safely.
