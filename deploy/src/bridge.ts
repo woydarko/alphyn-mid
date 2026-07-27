@@ -30,7 +30,7 @@ const PORT = Number(process.env.BRIDGE_PORT ?? 6363);
 // Demo-friendly keeper cadence: one epoch per active vault every this many
 // seconds, regardless of the vault's nominal epoch duration. Set higher in
 // production, or honor per-vault cadence.
-const KEEPER_SECONDS = Number(process.env.KEEPER_INTERVAL_SECONDS ?? 60);
+const KEEPER_SECONDS = Number(process.env.KEEPER_INTERVAL_SECONDS ?? 300);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STORE = path.resolve(here, '..', 'bridge-vaults.json');
 
@@ -89,6 +89,25 @@ const pub = (r: VaultRec) => ({
   active: r.active,
   createdAt: r.createdAt,
 });
+
+// Dust (the fee resource) regenerates from registered NIGHT over time. Under a
+// burst of transactions it can run dry; instead of failing, wait for it to
+// regenerate and retry.
+const isDustError = (e: any) => /could not balance dust|InsufficientFunds/i.test(String(e?.message ?? e));
+const withDustRetry = async <T>(label: string, fn: () => Promise<T>, tries = 8, delayMs = 20000): Promise<T> => {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i < tries && isDustError(e)) {
+        console.log(`⏳ ${label}: low dust, waiting ${Math.round(delayMs / 1000)}s for regen (try ${i + 1}/${tries})`);
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw e;
+    }
+  }
+};
 
 const witnesses = {
   localSecretKey: ({ privateState }: any): [any, Uint8Array] => [privateState, privateState.secretKey],
@@ -186,7 +205,7 @@ async function main() {
     serialized(async () => {
       const c = await joinAs(r.psId, psFromRec(r));
       const { up, down } = await fetchOracle();
-      const tx = await c.callTx.rebalance(up.map(BigInt), down.map(BigInt));
+      const tx = await withDustRetry('rebalance', () => c.callTx.rebalance(up.map(BigInt), down.map(BigInt)));
       const num = r.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
       const pnlBps = Math.round(num / 100);
       const store = loadStore();
@@ -252,7 +271,7 @@ async function main() {
         };
         const c = await joinAs(psId, psFromRec(draft));
         const before = new Set((await leaderboardRows()).map((r) => r.id));
-        const tx = await c.callTx.createVault(draft.category, BigInt(draft.assetCount));
+        const tx = await withDustRetry('createVault', () => c.callTx.createVault(draft.category, BigInt(draft.assetCount)));
         const after = await leaderboardRows();
         const vaultId = after.find((r) => !before.has(r.id))?.id ?? psId;
         draft.vaultId = vaultId;
@@ -293,7 +312,7 @@ async function main() {
         const r = loadStore()[body.vaultId];
         if (!r) throw new Error('unknown vault');
         const c = await joinAs(r.psId, psFromRec(r));
-        const tx = await c.callTx.follow(fromHex(body.targetId), BigInt(body.pct ?? 50));
+        const tx = await withDustRetry('follow', () => c.callTx.follow(fromHex(body.targetId), BigInt(body.pct ?? 50)));
         const store = loadStore();
         if (store[body.vaultId]) { store[body.vaultId].following = body.targetId; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };
@@ -303,7 +322,7 @@ async function main() {
         const r = loadStore()[body.vaultId];
         if (!r) throw new Error('unknown vault');
         const c = await joinAs(r.psId, psFromRec(r));
-        const tx = await c.callTx.unfollow();
+        const tx = await withDustRetry('unfollow', () => c.callTx.unfollow());
         const store = loadStore();
         if (store[body.vaultId]) { store[body.vaultId].following = null; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };
@@ -313,7 +332,7 @@ async function main() {
         const r = loadStore()[body.vaultId];
         if (!r) throw new Error('unknown vault');
         const c = await joinAs(r.psId, psFromRec(r));
-        const tx = await c.callTx.closeVault();
+        const tx = await withDustRetry('closeVault', () => c.callTx.closeVault());
         const store = loadStore();
         if (store[body.vaultId]) { store[body.vaultId].active = false; saveStore(store); }
         return { txId: tx?.public?.txId ?? null };

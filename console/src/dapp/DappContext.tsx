@@ -133,6 +133,11 @@ export const useDapp = () => {
 // toolchain ships.
 const explainTxError = (e: any): Error => {
   const m = String(e?.message ?? e);
+  if (/could not balance dust|InsufficientFunds/i.test(m)) {
+    return new Error(
+      'The operator wallet is low on dust (the fee resource, which regenerates from NIGHT over time). It refills on its own — wait a minute and retry.',
+    );
+  }
   if (/proof-versioned|Custom error: 170|InvalidDustSpendProof|1010: Invalid Transaction/i.test(m)) {
     return new Error(
       'Network version gap: Preview has moved to the v9 transaction format, while this build runs on the stable v8 SDK (the v9 Compact compiler is not published yet). The proof was generated fine; the node rejected the submit format. On-chain submits resume when Midnight ships the v9 toolchain.',
