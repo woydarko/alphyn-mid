@@ -24,7 +24,7 @@ export default function Questionnaire({
   onCancel,
   mintLabel = 'Use this strategy',
 }: {
-  onComplete: (s: Strategy) => void;
+  onComplete: (s: Strategy, vaultName: string) => void;
   onCancel: () => void;
   mintLabel?: string;
 }) {
@@ -119,7 +119,7 @@ export default function Questionnaire({
 
         <div className="wiz-nav">
           <button className="btn-ghost" onClick={() => setStrategy(null)}>Back to edit</button>
-          <button className="btn-primary" onClick={() => onComplete(strategy)}>{mintLabel}</button>
+          <button className="btn-primary" onClick={() => onComplete(strategy, vaultName)}>{mintLabel}</button>
         </div>
       </div>
     );

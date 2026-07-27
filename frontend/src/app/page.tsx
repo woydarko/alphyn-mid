@@ -48,10 +48,12 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
   const [topVaults, setTopVaults] = useState<any[]>([]);
 
   useEffect(() => {
+    // The live leaderboard lives in the /app dApp (reads the Midnight ledger).
+    // The landing preview is best-effort; ignore if the legacy endpoint is absent.
     fetch('/api/leaderboard?limit=3')
-      .then(res => res.json())
+      .then(res => (res.ok ? res.json() : []))
       .then(data => setTopVaults(Array.isArray(data) ? data.slice(0, 3) : []))
-      .catch(console.error);
+      .catch(() => setTopVaults([]));
   }, []);
 
   return (
@@ -80,7 +82,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
             <a href="#how-it-works" className="text-sm font-bold text-alphyn-textMuted hover:text-alphyn-orange transition-colors uppercase tracking-widest">Mechanism</a>
             <a href="#leaderboard" className="text-sm font-bold text-alphyn-textMuted hover:text-alphyn-orange transition-colors uppercase tracking-widest">Leaderboard</a>
             {hasAccount && (
-              <button onClick={() => router.push('/dashboard')} className="text-sm font-bold text-alphyn-text hover:text-alphyn-orange transition-colors uppercase tracking-widest">Dashboard</button>
+              <button onClick={() => (window.location.href = '/app/#/dashboard')} className="text-sm font-bold text-alphyn-text hover:text-alphyn-orange transition-colors uppercase tracking-widest">Dashboard</button>
             )}
           </div>
 
@@ -290,7 +292,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
                 <h2 className="text-4xl font-black mb-2">Top Performers</h2>
                 <p className="text-alphyn-textMuted font-medium">The most successful private vaults on the network.</p>
               </div>
-              <button onClick={() => router.push('/leaderboard')} className="px-6 py-3 bg-background border border-alphyn-surfaceBorder font-bold rounded-xl hover:border-alphyn-orange/60 transition-all flex items-center gap-2 shadow-sm">
+              <button onClick={() => (window.location.href = '/app/#/leaderboard')} className="px-6 py-3 bg-background border border-alphyn-surfaceBorder font-bold rounded-xl hover:border-alphyn-orange/60 transition-all flex items-center gap-2 shadow-sm">
                 View Full Leaderboard <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -304,7 +306,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
               </div>
               <div className="divide-y divide-alphyn-surfaceBorder">
                 {topVaults.length > 0 ? topVaults.map((v, i) => (
-                  <div key={v.chainVaultId ?? v.id ?? i} className="grid grid-cols-12 gap-4 p-6 items-center hover:bg-alphyn-surfaceHover transition-colors cursor-pointer group" onClick={() => router.push('/leaderboard')}>
+                  <div key={v.chainVaultId ?? v.id ?? i} className="grid grid-cols-12 gap-4 p-6 items-center hover:bg-alphyn-surfaceHover transition-colors cursor-pointer group" onClick={() => (window.location.href = '/app/#/leaderboard')}>
                     <div className="col-span-2 md:col-span-1 text-alphyn-textMuted font-mono font-bold group-hover:text-alphyn-orange transition-colors">0{i + 1}</div>
                     <div className="col-span-5 md:col-span-6 font-bold text-lg truncate pr-4">{v.vaultName}</div>
                     <div className="col-span-2 hidden md:block text-right">
@@ -361,7 +363,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
               <h4 className="font-bold text-sm uppercase tracking-widest text-alphyn-textMuted">Protocol</h4>
               <ul className="space-y-4">
                 <li><a href="#how-it-works" className="font-bold hover:text-alphyn-orange transition-colors">Mechanism</a></li>
-                <li><button onClick={() => router.push('/leaderboard')} className="font-bold hover:text-alphyn-orange transition-colors">Leaderboard</button></li>
+                <li><button onClick={() => (window.location.href = '/app/#/leaderboard')} className="font-bold hover:text-alphyn-orange transition-colors">Leaderboard</button></li>
               </ul>
             </div>
 
