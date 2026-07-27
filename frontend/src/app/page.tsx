@@ -11,6 +11,7 @@ import { ConnectButton } from '@/components/ConnectButton';
 import { WrongNetworkBanner } from '@/components/WrongNetworkBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccount } from 'wagmi';
+import { useMidnightWallet } from '@/lib/midnight/wallet';
 
 type PageState = 'loading' | 'unauthed' | 'no-vaults' | 'has-vaults';
 
@@ -45,7 +46,19 @@ function ScrollReveal({ children, delay = 0, className = '' }: { children: React
 
 function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
   const router = useRouter();
+  const { connected, connecting, connect } = useMidnightWallet();
   const [topVaults, setTopVaults] = useState<any[]>([]);
+
+  // Launching the app requires a connected wallet. If not connected, connect first
+  // (opens the wallet), and only then enter /app.
+  const launchApp = async () => {
+    try {
+      if (!connected) await connect();
+      window.location.href = '/app';
+    } catch {
+      /* user rejected the wallet prompt — stay on the landing */
+    }
+  };
 
   useEffect(() => {
     // The live leaderboard lives in the /app dApp (reads the Midnight ledger).
@@ -116,10 +129,10 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
 
               <div className="flex flex-col sm:flex-row items-center gap-5 pt-4">
                 <button
-                  onClick={() => (window.location.href = '/app')}
+                  onClick={launchApp} disabled={connecting}
                   className="w-full sm:w-auto px-10 py-5 bg-[#FF5E1A] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-xl shadow-orange-500/20"
                 >
-                  Launch App <ArrowRight className="w-5 h-5" />
+                  {connected ? "Launch App" : connecting ? "Connecting..." : "Connect & Launch"} <ArrowRight className="w-5 h-5" />
                 </button>
                 <a
                   href="#how-it-works"
@@ -337,10 +350,10 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
           <h2 className="text-5xl lg:text-6xl font-black tracking-tight">Ready to secure your alpha?</h2>
           <p className="text-xl text-alphyn-textMuted max-w-2xl mx-auto font-medium">Join the next generation of DeFi where strategy creation is intelligent and execution is absolutely private.</p>
           <button
-            onClick={() => (window.location.href = '/app')}
+            onClick={launchApp} disabled={connecting}
             className="px-12 py-6 bg-[#FF5E1A] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-2xl shadow-orange-500/30 mt-8"
           >
-            Launch App <ArrowRight className="w-6 h-6" />
+            {connected ? "Launch App" : connecting ? "Connecting..." : "Connect & Launch"} <ArrowRight className="w-6 h-6" />
           </button>
         </section>
       </main>
