@@ -7,7 +7,7 @@ This walks you through running a vault end to end. No blockchain experience need
 - Google Chrome (or another Chromium browser)
 - A Midnight wallet extension, either 1AM or Lace, set to the Preview network
 - Some test funds. Paste your wallet's unshielded address into the Preview faucet at https://faucet.preview.midnight.network/ and request tokens. Give the wallet a minute or two to sync.
-- The proof server running locally. If you cloned the repo, start it with `docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v`.
+- The proof server running locally. If you cloned the repo, start it with `docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0 -- midnight-proof-server -v`.
 
 ## Step by step
 

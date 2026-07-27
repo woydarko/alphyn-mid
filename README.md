@@ -72,7 +72,7 @@ compact update
 Start the proof server:
 
 ```bash
-docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v
+docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0 -- midnight-proof-server -v
 ```
 
 Compile the contract and run its tests:
