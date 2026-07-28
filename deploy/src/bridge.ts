@@ -228,6 +228,7 @@ async function main() {
       const now = Date.now();
       for (const r of Object.values(store)) {
         if (!r.active) continue;
+        if ((r.principal ?? 0) <= 0) continue; // a vault has nothing to manage until it is funded
         if (now - (r.lastEpochTs ?? 0) < KEEPER_SECONDS * 1000) continue;
         try {
           const tx = await runEpochFor(r);
@@ -286,6 +287,7 @@ async function main() {
     'POST /epoch': async (body) => {
       const r = loadStore()[body.vaultId];
       if (!r) throw new Error('unknown vault');
+      if ((r.principal ?? 0) <= 0) throw new Error('Fund this vault first: set notional capital via Deposit.');
       const txId = await runEpochFor(r);
       return { txId };
     },

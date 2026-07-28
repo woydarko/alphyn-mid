@@ -28,7 +28,7 @@ export default function VaultDetail() {
   // The keeper cannot do this server-side without holding the private allocation,
   // so the epoch loop lives with the only party who has the witness: this client.
   useEffect(() => {
-    if (!auto || !v) return;
+    if (!auto || !v || v.principal <= 0) return;
     const ms = Math.max(60, v.epochDurationSeconds) * 1000;
     const t = setInterval(async () => {
       if (runningRef.current) return;
@@ -146,18 +146,29 @@ export default function VaultDetail() {
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Epochs run</p>
           <div className="text-3xl font-black font-mono flex items-center gap-2"><Clock className="w-6 h-6 text-alphyn-orange" />{v.epochs.length}</div>
-          <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
-            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
-          </button>
-          {v.managed ? (
-            <p className="mt-3 text-xs text-green-700 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
-            </p>
+          {v.principal <= 0 ? (
+            <>
+              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2">
+                Fund to start
+              </button>
+              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit notional capital to activate epochs.</p>
+            </>
           ) : (
-            <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
-              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#FF5E1A' }} />
-              Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
-            </label>
+            <>
+              <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
+              </button>
+              {v.managed ? (
+                <p className="mt-3 text-xs text-green-700 font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
+                </p>
+              ) : (
+                <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
+                  <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#FF5E1A' }} />
+                  Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
+                </label>
+              )}
+            </>
           )}
         </div>
 
@@ -175,7 +186,7 @@ export default function VaultDetail() {
         <div className="lg:col-span-2 bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-[2rem]">
           <h3 className="text-xl font-bold mb-6">Performance History <span className="text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">(cumulative %)</span></h3>
           {series.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">Run an epoch to start your performance history.</div>
+            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">{v.principal <= 0 ? 'Fund the vault to start earning.' : 'The keeper will post the first epoch shortly.'}</div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
