@@ -4,6 +4,12 @@
 
 > A private AI portfolio vault on Midnight. You answer a few questions, an AI picks an allocation, and the chain never sees it.
 
+## Links
+
+- **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — landing, wallet connect, and the strategy quiz. On-chain minting runs through a local executor bridge (see [Setup and run locally](#setup-and-run-locally)); the walkthrough is in the demo video.
+- **X:** [@AlphynVault](https://x.com/AlphynVault)
+- **Contract (Preview):** `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3`
+
 ## What this is
 
 Most DeFi is fully public. If you build a good strategy, the moment it lands on-chain everyone can copy it, and the moment a vault rebalances, bots front-run the next move. The edge is gone the second it becomes visible.
