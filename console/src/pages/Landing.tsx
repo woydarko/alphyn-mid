@@ -7,7 +7,9 @@ import {
 import { useDapp } from '../dapp/DappContext';
 
 const CAT = ['conservative', 'balanced', 'aggressive'];
-const BRIDGE = 'http://localhost:6363';
+// Local bridge by default; set VITE_BRIDGE_URL when the executor is hosted (e.g.
+// a deployed showcase points at a public bridge, or leaves it unset to skip).
+const BRIDGE = (import.meta.env.VITE_BRIDGE_URL as string | undefined) ?? 'http://localhost:6363';
 // Public assets resolve against Vite's base ('/app/'), so prefix with BASE_URL
 // rather than a bare '/…' which would 404 under the app's base path.
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\//, '')}`;

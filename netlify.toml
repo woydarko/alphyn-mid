@@ -1,0 +1,17 @@
+# Netlify config — deploys the console dApp as a static UI showcase.
+# Note: mint/epoch need the local bridge + proof server, so the hosted build shows
+# the landing, wallet connect and the strategy quiz; on-chain minting is demoed
+# locally (see README). The build serves at root ('/'), not the '/app/' base used
+# when the app is embedded under the Next frontend.
+[build]
+  command = "cd console && npm install --legacy-peer-deps && npx vite build --base=/"
+  publish = "console/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# HashRouter serves every route from index.html; keep an SPA fallback anyway.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
