@@ -40,6 +40,11 @@ jobs:
       - name: Contract tests
         working-directory: contract
         run: npx vitest run
+      - name: Upload managed artifacts (for the console build)
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-alphyn
+          path: contract/src/managed/alphyn
 
   services:
     name: Services — typecheck + test
@@ -77,30 +82,20 @@ jobs:
   console:
     name: Console (dApp) — typecheck + build
     runs-on: ubuntu-latest
+    needs: contract
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # The compiled contract (console/src/managed) is gitignored, so regenerate it
-      # the same way a developer does: compile the Compact contract, then copy its
-      # managed output (circuits + keys) into the console.
-      - name: Install Compact toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Install compiler
-        run: compact update 0.30.0
-      - name: Compile contract
-        working-directory: contract
-        run: |
-          npm install
-          npm run compile
-      - name: Sync managed artifacts into console
-        run: |
-          mkdir -p console/src/managed
-          cp -r contract/src/managed/alphyn console/src/managed/alphyn
+      # The compiled contract (console/src/managed) is gitignored. Reuse the
+      # artifact the contract job already produced instead of installing the
+      # Compact toolchain again.
+      - name: Fetch managed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: managed-alphyn
+          path: console/src/managed/alphyn
       - name: Install deps
         working-directory: console
         run: npm install --legacy-peer-deps
