@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@originjs/vite-plugin-commonjs": "^1.0.3",
+    "@types/node": "^20.19.43",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/semver": "^7.7.1",
