@@ -137,4 +137,6 @@ Step by step instructions for using the app are in [docs/USAGE.md](docs/USAGE.md
 
 ## Product X Profile
 
-Handle and launch copy are drafted in [docs/X-LAUNCH.md](docs/X-LAUNCH.md). Profile link goes here once the account is live.
+**[@AlphynVault on X →](https://x.com/AlphynVault)** — build-in-public updates and product launch.
+
+Launch copy and brand notes are in [docs/X-LAUNCH.md](docs/X-LAUNCH.md).
