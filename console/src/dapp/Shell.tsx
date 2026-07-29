@@ -1,12 +1,61 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Outlet, Navigate } from 'react-router-dom';
+import { Loader2, AlertTriangle, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import { useDapp } from './DappContext';
 import { NETWORK_ID } from '../providers';
+import { explorerTxUrl } from '../explorer';
 import Nav from './Nav';
 
+function Toasts() {
+  const { toasts, dismissToast } = useDapp();
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 w-[22rem] max-w-[calc(100vw-2rem)]">
+      {toasts.map((t) => {
+        const url = explorerTxUrl(t.txId);
+        const ok = t.kind === 'success';
+        return (
+          <div
+            key={t.id}
+            className={`bg-alphyn-surface border rounded-2xl shadow-lg p-4 flex gap-3 items-start animate-[slideIn_.2s_ease-out] ${
+              ok ? 'border-green-500/30' : 'border-red-500/30'
+            }`}
+          >
+            {ok ? (
+              <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-sm text-alphyn-text">{t.title}</p>
+              {t.body && <p className="text-xs text-alphyn-textMuted mt-0.5 truncate">{t.body}</p>}
+              {url && (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-alphyn-orange hover:text-alphyn-orangeDeep"
+                >
+                  View on explorer <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+            <button
+              onClick={() => dismissToast(t.id)}
+              className="p-1 rounded-lg text-alphyn-textMuted hover:bg-alphyn-surfaceHover shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Shell() {
-  const { phase, error, connect, wrongNetwork, bridgeMode } = useDapp();
+  const { phase, wrongNetwork, bridgeMode } = useDapp();
 
   if (phase === 'connecting') {
     return (
@@ -17,26 +66,9 @@ export default function Shell() {
     );
   }
 
-  if (phase === 'need-wallet') {
-    return (
-      <div className="min-h-screen bg-background text-alphyn-text flex items-center justify-center px-6">
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-10 max-w-md w-full text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-alphyn-orange grid place-items-center text-white font-black text-2xl mx-auto">A</div>
-          <h1 className="text-2xl font-black tracking-tight">Connect your wallet to start</h1>
-          <p className="text-alphyn-textMuted text-sm">
-            Install a Midnight wallet (1AM or Lace), switch it to Preview, then connect.
-          </p>
-          {error && <p className="text-sm text-red-600 break-words">{error}</p>}
-          <button
-            onClick={connect}
-            className="w-full py-3.5 bg-alphyn-orange text-white font-bold rounded-2xl hover:bg-alphyn-orangeDeep transition-all"
-          >
-            Connect Wallet
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Not connected (fresh load, refresh, or after disconnect): the landing page
+  // owns the connect flow, so bounce there instead of prompting inside the app.
+  if (phase === 'need-wallet') return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-background text-alphyn-text font-sans">
@@ -52,6 +84,7 @@ export default function Shell() {
       )}
       <Nav />
       <Outlet />
+      <Toasts />
     </div>
   );
 }

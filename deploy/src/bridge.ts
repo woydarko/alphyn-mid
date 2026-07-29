@@ -280,8 +280,11 @@ async function main() {
         const store = loadStore();
         store[vaultId] = draft;
         saveStore(store);
-        console.log('✓ mint vault', vaultId.slice(0, 12), 'tx', tx?.public?.txId ?? 'ok');
-        return { vault: pub(draft), txId: tx?.public?.txId ?? null };
+        // txHash is the on-chain hash the block explorer indexes; txId is a
+        // different internal identifier (carries a tag byte) and 404s on the explorer.
+        const txHash = tx?.public?.txHash ?? null;
+        console.log('✓ mint vault', vaultId.slice(0, 12), 'txHash', txHash ?? 'ok');
+        return { vault: pub(draft), txId: tx?.public?.txId ?? null, txHash };
       }),
 
     'POST /epoch': async (body) => {

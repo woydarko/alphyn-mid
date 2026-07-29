@@ -99,13 +99,26 @@ interface SecretPart {
 
 type Phase = 'connecting' | 'need-wallet' | 'ready';
 
+export interface Toast {
+  id: string;
+  kind: 'success' | 'error';
+  title: string;
+  body?: string;
+  txId?: string | null;
+}
+
 interface DappValue {
   phase: Phase;
   error: string | null;
   wrongNetwork: boolean;
   sealAvailable: boolean;
   bridgeMode: boolean;
-  connect: () => Promise<void>;
+  toasts: Toast[];
+  notify: (t: Omit<Toast, 'id'>) => void;
+  dismissToast: (id: string) => void;
+  address: string;
+  connect: () => Promise<boolean>;
+  disconnect: () => void;
   vaults: LocalVault[];
   vaultById: (id: string) => LocalVault | undefined;
   contractAddress: string | null;
@@ -184,14 +197,26 @@ async function readNetwork(api: any): Promise<string | null> {
 }
 
 export function DappProvider({ children }: { children: React.ReactNode }) {
-  const [phase, setPhase] = useState<Phase>('connecting');
+  const [phase, setPhase] = useState<Phase>('need-wallet');
   const [error, setError] = useState<string | null>(null);
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const [bridgeMode, setBridgeMode] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const [providers, setProviders] = useState<any>(null);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+  const notify = useCallback((t: Omit<Toast, 'id'>) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setToasts((prev) => [...prev, { ...t, id }]);
+    // Success toasts self-dismiss; errors stay until the user closes them.
+    if (t.kind === 'success') setTimeout(() => dismissToast(id), 8000);
+  }, [dismissToast]);
   const [vaults, setVaults] = useState<LocalVault[]>([]);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [address, setAddress] = useState<string>('');
 
   const apiRef = useRef<any>(null);
   const keyRef = useRef<CryptoKey | null>(null);
@@ -247,7 +272,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     setVaults(out);
   }, []);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (): Promise<boolean> => {
     setError(null);
     setPhase('connecting');
     try {
@@ -256,6 +281,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       const api = await connectWallet();
       apiRef.current = api;
       addrRef.current = await readAddress(api);
+      setAddress(addrRef.current);
       const net = await readNetwork(api);
       setWrongNetwork(net != null && net !== NETWORK_ID);
 
@@ -274,16 +300,38 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         await loadVaults();
       }
       setPhase('ready');
+      return true;
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setPhase('need-wallet');
+      return false;
     }
   }, [loadVaults]);
 
-  useEffect(() => {
-    connect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Drop the current wallet session so the user can connect a different one. This
+  // clears the derived key, providers and in-memory vaults; on-chain state and any
+  // sealed localStorage records survive and reload when a wallet reconnects. It
+  // does not auto-reconnect (the mount effect runs once), so the connect screen
+  // shows until the user picks a wallet again.
+  const disconnect = useCallback(() => {
+    try { apiRef.current?.disconnect?.(); } catch { /* connector may not support it */ }
+    apiRef.current = null;
+    keyRef.current = null;
+    addrRef.current = 'default';
+    setAddress('');
+    setProviders(null);
+    setBridgeMode(false);
+    setContractAddress(null);
+    setVaults([]);
+    setLeaderboard([]);
+    setWrongNetwork(false);
+    setError(null);
+    setPhase('need-wallet');
   }, []);
+
+  // No auto-connect on mount: the landing page owns the connect action (its
+  // "Launch App" button calls connect()), so opening the site never pops the
+  // wallet unprompted.
 
   const privateStateFor = (v: LocalVault) =>
     createAlphynPrivateState(fromHex(v.secretHex), bigAlloc(v.allocation), fromHex(v.nonceHex));
@@ -408,6 +456,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         const v = mapBridgeVault(out.vault);
         await refreshManagedVaults();
         refreshLeaderboard();
+        notify({ kind: 'success', title: 'Strategy minted', body: v.name, txId: out.txHash ?? null });
         return v;
       }
       const secret = rand32();
@@ -431,7 +480,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       }
 
       const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));
-      await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
+      const mintTx = await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
       const after = await readLeaderboard(providers, address);
       setLeaderboard(after);
       const vaultId = after.find((r) => !before.has(r.id))?.id ?? `local-${Date.now()}`;
@@ -456,12 +505,13 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         active: true,
       };
       await persist([...vaults, v]);
+      notify({ kind: 'success', title: 'Strategy minted', body: v.name, txId: (mintTx as any)?.public?.txHash ?? null });
       return v;
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard, mapBridgeVault, refreshManagedVaults],
+    [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard, mapBridgeVault, refreshManagedVaults, notify],
   );
 
   const runEpoch = useCallback(
@@ -580,7 +630,12 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     wrongNetwork,
     sealAvailable: !!keyRef.current,
     bridgeMode,
+    toasts,
+    notify,
+    dismissToast,
+    address,
     connect,
+    disconnect,
     vaults,
     vaultById: (id) => vaults.find((v) => v.vaultId === id),
     contractAddress,

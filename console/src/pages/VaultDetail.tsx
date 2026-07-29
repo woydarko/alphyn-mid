@@ -154,21 +154,21 @@ export default function VaultDetail() {
               <p className="mt-3 text-xs text-alphyn-textMuted">Deposit notional capital to activate epochs.</p>
             </>
           ) : (
-            <>
-              <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
-                {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
-              </button>
-              {v.managed ? (
-                <p className="mt-3 text-xs text-green-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
-                </p>
-              ) : (
+            v.managed ? (
+              <p className="mt-4 text-xs text-green-700 font-medium flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
+              </p>
+            ) : (
+              <>
+                <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                  {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
+                </button>
                 <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
                   <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#FF5E1A' }} />
                   Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
                 </label>
-              )}
-            </>
+              </>
+            )
           )}
         </div>
 

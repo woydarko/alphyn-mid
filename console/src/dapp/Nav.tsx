@@ -1,10 +1,14 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Trophy, Plus } from 'lucide-react';
+import { Trophy, Plus, LogOut, Wallet } from 'lucide-react';
+import { useDapp } from './DappContext';
+
+const shortAddr = (a: string) => (a && a.length > 14 ? `${a.slice(0, 10)}…${a.slice(-5)}` : a);
 
 export default function Nav() {
   const nav = useNavigate();
   const loc = useLocation();
+  const { address, disconnect } = useDapp();
   const onLeaderboard = loc.pathname.startsWith('/leaderboard');
   return (
     <nav className="flex items-center justify-between px-6 lg:px-12 py-5 max-w-7xl mx-auto border-b border-alphyn-surfaceBorder">
@@ -27,6 +31,23 @@ export default function Nav() {
         >
           <Plus className="w-4 h-4" /> New Strategy
         </button>
+        {address && (
+          <div className="flex items-center rounded-xl border border-alphyn-surfaceBorder overflow-hidden">
+            <span
+              className="flex items-center gap-2 pl-3 pr-2.5 py-2 text-xs font-mono font-semibold text-alphyn-textMuted"
+              title={address}
+            >
+              <Wallet className="w-3.5 h-3.5 text-alphyn-orange" /> {shortAddr(address)}
+            </span>
+            <button
+              onClick={disconnect}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-alphyn-textMuted border-l border-alphyn-surfaceBorder hover:bg-red-500/10 hover:text-red-600 transition-colors"
+              title="Disconnect wallet"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Disconnect
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );
