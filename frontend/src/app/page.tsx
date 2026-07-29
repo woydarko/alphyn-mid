@@ -384,7 +384,7 @@ function MarketingLanding({ hasAccount }: { hasAccount: boolean }) {
             <div className="col-span-1 md:col-span-3 space-y-6">
               <h4 className="font-bold text-sm uppercase tracking-widest text-alphyn-textMuted">Connect</h4>
               <ul className="space-y-4">
-                <li><a href="https://github.com/woydarko/alphyn" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold hover:text-alphyn-orange transition-colors"><Code2 className="w-4 h-4" /> GitHub</a></li>
+                <li><a href="https://github.com/woydarko/alphyn-mid" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold hover:text-alphyn-orange transition-colors"><Code2 className="w-4 h-4" /> GitHub</a></li>
                 <li><a href="#" className="flex items-center gap-2 font-bold hover:text-alphyn-orange transition-colors"><Globe className="w-4 h-4" /> Website</a></li>
                 <li><a href="https://x.com/alphynvault" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold hover:text-alphyn-orange transition-colors"><MessageCircle className="w-4 h-4" /> X (Twitter)</a></li>
               </ul>
