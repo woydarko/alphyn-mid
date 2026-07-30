@@ -6,9 +6,21 @@
 
 ## Links
 
-- **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — landing, wallet connect, and the strategy quiz. On-chain minting runs through a local executor bridge (see [Setup and run locally](#setup-and-run-locally)); the walkthrough is in the demo video.
-- **X:** [@AlphynVault](https://x.com/AlphynVault)
+- **Demo video:** [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE)
+- **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — landing, wallet connect, and the strategy quiz. On-chain minting runs through a local executor bridge (see [Setup and run locally](#setup-and-run-locally)); the full walkthrough is in the demo video.
+- **X profile:** [@AlphynVault](https://x.com/AlphynVault)
 - **Contract (Preview):** `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3`
+
+## Level 4 submission
+
+| Requirement | Where |
+|-------------|-------|
+| Working MVP | Live UI at [alphynvault.netlify.app](https://alphynvault.netlify.app); full on-chain mint/epoch demoed in the [video](https://youtu.be/gdQ5BlNNoYE) and runnable via [Setup and run locally](#setup-and-run-locally) |
+| Verifiable contract address | Preview `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` (see [Contract Address](#contract-address); Preprod was down, per the note there) |
+| Documentation | This README + [docs/USAGE.md](docs/USAGE.md), [docs/PRIVACY.md](docs/PRIVACY.md), [PROPOSAL.md](PROPOSAL.md) |
+| CI/CD | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — badge above, passing on `main` |
+| Product X profile | [@AlphynVault](https://x.com/AlphynVault) |
+| Demo video | [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE) |
 
 ## What this is
 
