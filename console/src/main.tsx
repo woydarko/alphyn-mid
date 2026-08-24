@@ -7,8 +7,7 @@ import './index.css';
 // Midnight libs expect a global Buffer in the browser.
 (globalThis as any).Buffer ??= Buffer;
 
-createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+// StrictMode intentionally disabled while diagnosing Preprod submits: its dev-only
+// double-invocation was firing mint twice, producing duplicate wallet submits that
+// the node temporarily bans (masking the real rejection). Re-enable once stable.
+createRoot(document.getElementById('root')!).render(<App />);

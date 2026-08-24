@@ -151,10 +151,15 @@ const explainTxError = (e: any): Error => {
       'The operator wallet is low on dust (the fee resource, which regenerates from NIGHT over time). It refills on its own — wait a minute and retry.',
     );
   }
-  if (/proof-versioned|Custom error: 170|InvalidDustSpendProof|1010: Invalid Transaction/i.test(m)) {
-    return new Error(
-      'Network version gap: Preview has moved to the v9 transaction format, while this build runs on the stable v8 SDK (the v9 Compact compiler is not published yet). The proof was generated fine; the node rejected the submit format. On-chain submits resume when Midnight ships the v9 toolchain.',
-    );
+  const dustCode = m.match(/Custom error:\s*(\d+)/i)?.[1];
+  if (dustCode === '170') {
+    return new Error(`Dust proof rejected (Custom error 170) — proof server version mismatch (needs 8.1.0). Raw: ${m}`);
+  }
+  if (dustCode === '171') {
+    return new Error(`Dust out of validity window (Custom error 171) — indexer timestamp stale/lagging. Retry shortly. Raw: ${m}`);
+  }
+  if (/proof-versioned|1010: Invalid Transaction/i.test(m)) {
+    return new Error(`Transaction format rejected by node (possible ledger version gap). Raw: ${m}`);
   }
   return e instanceof Error ? e : new Error(m);
 };
@@ -221,6 +226,9 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const apiRef = useRef<any>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const addrRef = useRef<string>('default');
+  // Guards against concurrent mints: a second call while one is in flight produces
+  // duplicate wallet submits that the node temporarily bans (masking real errors).
+  const mintingRef = useRef(false);
 
   const lsVaults = () => `alphyn.vaults.${addrRef.current}`;
   const lsAddr = () => `alphyn.contract.${addrRef.current}`;
@@ -426,6 +434,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
   const mint = useCallback(
     async (s: Strategy, name: string): Promise<LocalVault> => {
+      if (mintingRef.current) throw new Error('A mint is already in progress — wait for it to finish.');
+      mintingRef.current = true;
       try {
       if (bridgeMode) {
         // The user's wallet signs to authorize the mint and derive this vault's
@@ -509,6 +519,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       return v;
       } catch (e) {
         throw explainTxError(e);
+      } finally {
+        mintingRef.current = false;
       }
     },
     [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard, mapBridgeVault, refreshManagedVaults, notify],
