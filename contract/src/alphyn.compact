@@ -47,6 +47,9 @@ export ledger vaultCount: Counter;
 // follower vaultId → target vaultId. The relationship is public; the follower's
 // own allocation % stays private (never disclosed).
 export ledger follows: Map<Bytes<32>, Bytes<32>>;
+// vaultId → real native-token (tNIGHT) balance the contract custodies for it.
+// Path A phase 1: deposits/withdrawals move REAL coins, not notional capital.
+export ledger custody: Map<Bytes<32>, Uint<128>>;
 
 // ─── Private witnesses (implemented in TypeScript, never on-chain) ────────────
 witness localSecretKey(): Bytes<32>;            // the user's vault secret
@@ -157,6 +160,46 @@ export circuit rebalance(
     followers:       v.followers,
     active:          v.active,
   });
+}
+
+// ─── Real custody (Path A, phase 1) ──────────────────────────────────────────
+
+// Deposit real native token (tNIGHT) into the caller's vault. The wallet includes
+// a matching coin to the contract in the transaction; `receiveUnshielded` binds
+// that transfer, and we credit the vault's custody balance. Amount is public value
+// entering the contract, so it is disclosed.
+export circuit deposit(amount: Uint<128>): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+
+  receiveUnshielded(nativeToken(), amt);
+
+  if (custody.member(id)) {
+    const cur = custody.lookup(id);
+    custody.insert(id, (cur + amt) as Uint<128>);
+  } else {
+    custody.insert(id, amt);
+  }
+}
+
+// Withdraw real native token back out. The owner proves control via the secret,
+// the contract pays `amount` of native token to `recipient`, and the custody
+// balance is debited. `recipient` is built by the caller (a UserAddress).
+export circuit withdraw(amount: Uint<128>, recipient: Either<ContractAddress, UserAddress>): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(custody.member(id), "no custody for vault");
+
+  const cur = custody.lookup(id);
+  assert(cur >= amt, "insufficient custody");
+
+  custody.insert(id, (cur - amt) as Uint<128>);
+  sendUnshielded(nativeToken(), amt, disclose(recipient));
 }
 
 // Follow another vault's DIRECTION. Public: follower→target link + target's
