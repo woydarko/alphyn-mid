@@ -63,7 +63,7 @@ export default function Landing() {
     const ok = await connect();
     setBusy(false);
     if (ok) nav('/create');
-    else setError('Connect a Midnight wallet (1AM or Lace) on Preview to launch.');
+    else setError('Connect a Midnight wallet (1AM or Lace) on Preprod to launch.');
   };
 
   // Best-effort live preview from the local bridge; silently empty if it is down.
@@ -94,7 +94,7 @@ export default function Landing() {
 
       {wrongNetwork && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
-          <AlertTriangle className="w-4 h-4" /> Switch your wallet to Preview to transact safely.
+          <AlertTriangle className="w-4 h-4" /> Switch your wallet to Preprod to transact safely.
         </div>
       )}
 

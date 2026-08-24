@@ -12,7 +12,7 @@ import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider
 import semver from 'semver';
 
 const COMPATIBLE_CONNECTOR = '4.x';
-export const NETWORK_ID = 'preview';
+export const NETWORK_ID = 'preprod';
 
 // The ledger/protocol layer keeps a global network id that MUST be set before any
 // transaction serialization or contract call. Set it eagerly on import.
@@ -34,7 +34,7 @@ function getWallet(): any {
 export async function connectWallet(): Promise<any> {
   const initial = getWallet();
   if (!initial) {
-    throw new Error('No compatible wallet found. Install a Midnight wallet (e.g. 1AM) and switch it to Preview.');
+    throw new Error('No compatible wallet found. Install a Midnight wallet (e.g. 1AM) and switch it to Preprod.');
   }
   const api = await initial.connect(NETWORK_ID);
   await api.getConnectionStatus();
@@ -50,11 +50,24 @@ export async function buildProviders(connectedAPI: any) {
   const priv = inMemoryPrivateStateProvider();
   const shielded = await connectedAPI.getShieldedAddresses();
 
+  // Error 170 (InvalidDustSpendProof) comes from a cross-line proof mismatch: our
+  // ledger-v8 is 8.1.0, but the wallet's default prover may be on the 8.0.3 line.
+  // Pin the prover to one matching our ledger line via VITE_PROOF_SERVER_URL
+  // (e.g. a local 8.1.0 proof server at http://localhost:6300).
+  const proverUri = (import.meta.env.VITE_PROOF_SERVER_URL as string | undefined) || config.proverServerUri;
+
+  // Error 171 (OutOfDustValidityWindow) comes from a stale block timestamp used as
+  // the dust ctime. The wallet's indexer can lag hours behind chain; pin the
+  // indexer to a fresh one via VITE_INDEXER_URL / VITE_INDEXER_WS_URL so ctime
+  // stays inside the validity window.
+  const indexerUri = (import.meta.env.VITE_INDEXER_URL as string | undefined) || config.indexerUri;
+  const indexerWsUri = (import.meta.env.VITE_INDEXER_WS_URL as string | undefined) || config.indexerWsUri;
+
   return {
     privateStateProvider: priv,
     zkConfigProvider: zk,
-    proofProvider: httpClientProofProvider(config.proverServerUri, zk),
-    publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
+    proofProvider: httpClientProofProvider(proverUri, zk),
+    publicDataProvider: indexerPublicDataProvider(indexerUri, indexerWsUri),
     walletProvider: {
       getCoinPublicKey() {
         return shielded.shieldedCoinPublicKey;
