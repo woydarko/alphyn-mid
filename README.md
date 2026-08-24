@@ -7,20 +7,32 @@
 ## Links
 
 - **Demo video:** [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE)
-- **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — landing, wallet connect, and the strategy quiz. On-chain minting runs through a local executor bridge (see [Setup and run locally](#setup-and-run-locally)); the full walkthrough is in the demo video.
+- **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — connect a Midnight wallet (1AM) on Preprod, run the strategy quiz, and mint a vault. Minting deploys/calls the contract **natively from the browser** through the wallet's hosted proving — no bridge, no local proof server.
 - **X profile:** [@AlphynVault](https://x.com/AlphynVault)
-- **Contract (Preview):** `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3`
+- **Contract (Preprod):** `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4`
 
-## Level 4 submission
+## Level 5 submission
+
+The Full Moon cycle: the same MVP, now live on **Preprod**, transacting natively from the browser, with a feedback loop and real users.
 
 | Requirement | Where |
 |-------------|-------|
-| Working MVP | Live UI at [alphynvault.netlify.app](https://alphynvault.netlify.app); full on-chain mint/epoch demoed in the [video](https://youtu.be/gdQ5BlNNoYE) and runnable via [Setup and run locally](#setup-and-run-locally) |
-| Verifiable contract address | Preview `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` (see [Contract Address](#contract-address); Preprod was down, per the note there) |
-| Documentation | This README + [docs/USAGE.md](docs/USAGE.md), [docs/PRIVACY.md](docs/PRIVACY.md), [PROPOSAL.md](PROPOSAL.md) |
-| CI/CD | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — badge above, passing on `main` |
+| Same MVP from Level 4, extended | Now runs on Preprod via the browser + 1AM (no bridge); see [Running on Preprod](#running-on-preprod-the-native-browser-path) |
+| Verifiable Preprod contract | `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4` — createVault verified on-chain (block 2245657) |
+| 50 Preprod users (verifiable wallets) | Tracked in [docs/PREPROD-USERS.md](docs/PREPROD-USERS.md) |
+| Feedback loop documented | [docs/FEEDBACK.md](docs/FEEDBACK.md) |
+| Updated documentation | This README + [docs/USAGE.md](docs/USAGE.md), [docs/PRIVACY.md](docs/PRIVACY.md) |
+| ≥20 meaningful commits | This cycle's history on `main` |
+| Demo video | [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE) _(Preprod re-record in progress)_ |
+
+### Level 4 submission (previous cycle)
+
+| Requirement | Where |
+|-------------|-------|
+| Working MVP | Live UI at [alphynvault.netlify.app](https://alphynvault.netlify.app); full on-chain mint/epoch in the [video](https://youtu.be/gdQ5BlNNoYE) |
+| Verifiable contract address | Preview `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` |
+| CI/CD | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — badge above |
 | Product X profile | [@AlphynVault](https://x.com/AlphynVault) |
-| Demo video | [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE) |
 
 ## What this is
 
@@ -36,36 +48,27 @@ This is a rewrite of an earlier EVM/iExec version. The old design leaned on a tr
 
 | Network | Address |
 |---------|---------|
-| Preview | `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` |
+| Preprod (Level 5) | `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4` |
+| Preview (Level 4) | `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` |
 
-Deployed and verified live: `createVault` and `rebalance` both ran on-chain, and the recorded PnL matched the committed allocation exactly (see the demo notes in `docs/USAGE.md`).
+Deployed and verified live on Preprod: `createVault` ran on-chain (block 2245657, tx `662918c413ef07dd810af255aab83e13651fc1b544dab084a42eae7faef12187`), submitted straight from the browser through the connected wallet.
 
-> Note on network: this is on Preview. Preprod was down during the build window, and the challenge allows either Preview or Preprod for Levels 1 to 5. The same build redeploys to Preprod without code changes once it is back up.
+## Running on Preprod: the native browser path
 
-## Known limitation: the Preview v9 transition
+Level 5 runs on Preprod, and — unlike Level 4 — the whole flow happens **natively in the browser** through the connected wallet. Connect 1AM on Preprod, run the quiz, and Mint: the app deploys/calls the Compact contract and the wallet's **hosted proving (1AM Proofstation) generates the proof and sponsors the dust fee**, so users need no local proof server and no bridge.
 
-Midway through this build, Preview and the browser wallets moved to the new v9 transaction format (ledger-v9, compact-runtime 0.18, "proof-versioned" transactions). This project runs on the stable v8 line, which is the newest one with a released Compact compiler: the public compiler tops out at 0.31.1 and emits v8 artifacts, so a v9 contract build is not yet possible with released tooling.
+Getting there meant aligning the fee/proof stack, which surfaces as two ledger errors worth documenting:
 
-What this means in practice:
+- **`Custom error 170` (InvalidDustSpendProof)** — a cross-line mismatch: the transaction is built with one ledger line while the dust fee proof is generated on another (e.g. app on `ledger-v8` 8.1.0 vs a proof server on the 8.0.3 line). Fix: keep the whole fee stack on one line — the app is pinned to the current stable matrix (compiler 0.31.1, runtime 0.16, `ledger-v8` 8.1.0, midnight-js 4.1.1) and proves through the wallet's matching proof server rather than overriding it.
+- **`Custom error 171` (OutOfDustValidityWindow)** — the dust `ctime` is read from a block timestamp; if the indexer lags far behind chain, that timestamp is stale and the dust spend falls outside its validity window. It clears once the indexer is in sync (verify freshness against the public indexer at `indexer.preprod.midnight.network`).
 
-- The browser extensions auto-updated to v9, so a submit through them is rejected with a format error. The app detects this and explains it instead of failing silently.
-- The node itself still accepts v8 transactions. So the project ships a local execution bridge: a small service that holds a headless operator wallet on the v8 line and executes every circuit call. With the bridge running, the whole product works live on Preview today, end to end, from the same UI. This mirrors the original Alphyn architecture, where a backend runner executed on-chain while the frontend stayed pure UI.
-- When Midnight ships the v9 compiler, this repo migrates by bumping versions and recompiling, and the extension path takes over again with no design changes.
+The console reads proof-server and indexer endpoints from the connected wallet by default, and honours optional `VITE_PROOF_SERVER_URL` / `VITE_INDEXER_URL` overrides for local development against a self-hosted proof server.
 
-Run the bridge (proof server 8.0.3 on :6300, seed in `deploy/.env`):
+## The bridge and keeper (optional, for zero-setup onboarding)
 
-```bash
-cd deploy
-MIDNIGHT_NETWORK=preview npm run bridge
-```
+The browser path above is the default. The repo also keeps the original **execution bridge** — a small service holding an operator wallet that proves and submits on a stack you control, so users can transact by only signing (no wallet-side proving at all). Run it with `MIDNIGHT_NETWORK=preprod npm run bridge` from `deploy/`; the app auto-detects it at `localhost:6363`.
 
-The app auto-detects it at `localhost:6363` and shows a "Local executor active" banner. Verified live through the UI: mint tx `00ca0c00b277…`, rebalance tx `00fb8600685a…`, both visible in the on-chain leaderboard.
-
-## Epochs run automatically (the keeper)
-
-Like the original Alphyn, epochs are not manual. The bridge doubles as a **keeper**: a background loop that runs one rebalance per active vault on a fixed cadence, using real price returns as the oracle. The browser just reflects it — the vault page shows "Keeper is running epochs automatically" and the chart grows on its own.
-
-The difference from the old design is where trust sits. The original keeper ran inside a server-side TEE that held every user's strategy. Here the keeper is the operator wallet on the user's own machine, and the private allocation witnesses live next to it in `bridge-vaults.json`. Only the party that already owns the secret runs the proof; nothing private is handed to a remote operator, and on-chain only the commitment and aggregates are ever public. Cadence is `KEEPER_INTERVAL_SECONDS` (default 60 for demos). A manual "Run epoch" button is still there to trigger one on demand.
+It doubles as a **keeper**: a background loop that runs one rebalance per active vault on a fixed cadence, using real price returns as the oracle — epochs are not manual. The difference from the original Alphyn is where trust sits: the old keeper ran inside a server-side TEE that held every user's strategy, whereas here only the party that owns the secret runs the proof, and on-chain only the commitment and aggregates are ever public. Cadence is `KEEPER_INTERVAL_SECONDS` (default 60 for demos); a manual "Run epoch" button triggers one on demand.
 
 ## Privacy Model
 
@@ -97,7 +100,7 @@ Full breakdown of what an observer can and cannot learn is in [docs/PRIVACY.md](
 - Node 22 (the deploy CLI and contract tests) and Node 24 (the console build)
 - Docker, for the proof server
 - The Compact compiler
-- A Midnight wallet (1AM or Lace) set to Preview, with test funds from the faucet
+- A Midnight wallet (1AM or Lace) set to Preprod, with test funds from the faucet
 
 On Windows, run the toolchain inside WSL2. The compiler binary name `compact` clashes with the built-in Windows `compact.exe`, so WSL keeps things clean.
 
@@ -136,7 +139,7 @@ bash build-contract.sh   # compiles the contract into the console and stages ZK 
 npm run dev              # opens on http://localhost:5173
 ```
 
-Open the console, connect your wallet on Preview, and the deployed contract address is already filled in. From there you can create a vault, run a rebalance, and read the leaderboard.
+Open the console, connect your wallet on Preprod, and mint: the app deploys or joins a vault contract and submits straight from the browser. From there you can create a vault, run a rebalance, and read the leaderboard.
 
 ## Run tests
 
