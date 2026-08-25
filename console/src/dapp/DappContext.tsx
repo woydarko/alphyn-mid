@@ -11,9 +11,12 @@ import {
   rebalance as cvRebalance,
   follow as cvFollow,
   deposit as cvDeposit,
+  withdraw as cvWithdraw,
+  readVaultCustody,
   readLeaderboard,
   type LeaderboardRow,
 } from '../alphyn-api';
+import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
 import { rand32, type Strategy } from '../strategy';
 import { deriveVaultKey, seal, unseal, type Sealed } from './vaultCrypto';
 import { fetchOracle } from './priceFeed';
@@ -129,6 +132,8 @@ interface DappValue {
   runEpoch: (vaultId: string) => Promise<void>;
   setPrincipal: (vaultId: string, amount: number) => void;
   depositReal: (vaultId: string, amount: bigint) => Promise<void>;
+  withdrawReal: (vaultId: string, amount: bigint) => Promise<void>;
+  vaultCustody: (vaultId: string) => Promise<bigint>;
   renameVault: (vaultId: string, name: string) => void;
   follow: (vaultId: string, targetId: string, pct: number) => Promise<void>;
   unfollow: (vaultId: string) => Promise<void>;
@@ -604,6 +609,40 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     [vaults, providers, refreshLeaderboard],
   );
 
+  // Read a vault's real on-chain custody balance (native base units).
+  const vaultCustody = useCallback(
+    async (vaultId: string): Promise<bigint> => {
+      const v = vaults.find((x) => x.vaultId === vaultId);
+      if (!v || !providers) return 0n;
+      try {
+        return await readVaultCustody(providers, v.contractAddress, v.vaultId);
+      } catch {
+        return 0n;
+      }
+    },
+    [vaults, providers],
+  );
+
+  // Real on-chain withdraw: pay custodied tNIGHT back to the owner's unshielded
+  // address via the `withdraw` circuit.
+  const withdrawReal = useCallback(
+    async (vaultId: string, amount: bigint) => {
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        if (v.managed) throw new Error('Managed (bridge) vaults withdraw through the bridge, not the wallet.');
+        const addrBytes = new Uint8Array(
+          MidnightBech32m.parse(addrRef.current).decode(UnshieldedAddress, NETWORK_ID).data,
+        );
+        const contract = await joinFor(v);
+        await cvWithdraw(contract, amount, addrBytes);
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
+    },
+    [vaults, providers, refreshLeaderboard],
+  );
+
   const renameVault = useCallback(
     (vaultId: string, name: string) => {
       const v = vaults.find((x) => x.vaultId === vaultId);
@@ -698,6 +737,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     runEpoch,
     setPrincipal,
     depositReal,
+    withdrawReal,
+    vaultCustody,
     renameVault,
     follow,
     unfollow,

@@ -89,6 +89,19 @@ export interface LeaderboardRow {
   active: boolean;
 }
 
+/** Read a vault's real on-chain custody balance (native tNIGHT base units). */
+export async function readVaultCustody(
+  providers: any,
+  contractAddress: string,
+  vaultIdHex: string,
+): Promise<bigint> {
+  const state = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (!state) return 0n;
+  const l = ledger(state.data);
+  const id = Uint8Array.from((vaultIdHex.match(/.{1,2}/g) ?? []).map((b) => parseInt(b, 16)));
+  return l.custody.member(id) ? l.custody.lookup(id) : 0n;
+}
+
 /** Read the PUBLIC ledger - aggregate stats only; never any allocation. */
 export async function readLeaderboard(providers: any, contractAddress: string): Promise<LeaderboardRow[]> {
   const state = await providers.publicDataProvider.queryContractState(contractAddress);

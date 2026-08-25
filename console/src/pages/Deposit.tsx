@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 import { useDapp } from '../dapp/DappContext';
@@ -8,13 +8,22 @@ export default function Deposit() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
-  const { vaultById, setPrincipal, depositReal } = useDapp();
+  const { vaultById, setPrincipal, depositReal, withdrawReal, vaultCustody } = useDapp();
   const v = vaultById(id!);
   const [tab, setTab] = useState<'deposit' | 'withdraw'>(sp.get('tab') === 'withdraw' ? 'withdraw' : 'deposit');
   const [amount, setAmount] = useState('');
   const [realAmt, setRealAmt] = useState('');
+  const [realMode, setRealMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [realBusy, setRealBusy] = useState(false);
   const [realMsg, setRealMsg] = useState<string | null>(null);
+  const [custody, setCustody] = useState<bigint | null>(null);
+
+  const refreshCustody = useCallback(() => {
+    if (!v || v.managed) return;
+    vaultCustody(v.vaultId).then(setCustody).catch(() => setCustody(null));
+  }, [v, vaultCustody]);
+
+  useEffect(() => { refreshCustody(); }, [refreshCustody]);
 
   const submitReal = async () => {
     const base = (() => { try { return BigInt(realAmt); } catch { return 0n; } })();
@@ -22,9 +31,11 @@ export default function Deposit() {
     setRealBusy(true);
     setRealMsg(null);
     try {
-      await depositReal(v!.vaultId, base);
-      setRealMsg('Deposit submitted on-chain ✓');
+      if (realMode === 'deposit') await depositReal(v!.vaultId, base);
+      else await withdrawReal(v!.vaultId, base);
+      setRealMsg(`${realMode === 'deposit' ? 'Deposit' : 'Withdraw'} submitted on-chain ✓`);
       setRealAmt('');
+      setTimeout(refreshCustody, 4000);
     } catch (e: any) {
       setRealMsg(e?.message ?? String(e));
     } finally {
@@ -108,12 +119,28 @@ export default function Deposit() {
 
       {!v.managed && (
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-8 space-y-4">
-          <div>
-            <h2 className="text-lg font-black">Real deposit (experimental)</h2>
-            <p className="text-xs text-alphyn-textMuted leading-relaxed mt-1">
-              Moves actual tNIGHT into the vault's on-chain custody via the <code>deposit</code> circuit.
-              Amount is in native base units. Your wallet will prompt to approve the transfer.
-            </p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black">Real custody (on-chain)</h2>
+            <span className="text-sm font-mono text-alphyn-orange">
+              {custody === null ? '…' : `${custody.toString()} tNIGHT`}
+            </span>
+          </div>
+          <p className="text-xs text-alphyn-textMuted leading-relaxed">
+            Moves actual tNIGHT in/out of the vault's on-chain custody via the <code>deposit</code> /{' '}
+            <code>withdraw</code> circuits. Amounts are native base units; your wallet approves the transfer.
+          </p>
+          <div className="flex bg-background border border-alphyn-surfaceBorder rounded-xl p-1">
+            {(['deposit', 'withdraw'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setRealMode(m)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold capitalize transition-all ${
+                  realMode === m ? 'bg-alphyn-orange text-white' : 'text-alphyn-textMuted'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
           </div>
           <input
             type="number"
@@ -127,9 +154,9 @@ export default function Deposit() {
           <button
             onClick={submitReal}
             disabled={realBusy || !realAmt}
-            className="w-full py-3.5 border border-alphyn-orange text-alphyn-orange font-bold rounded-2xl hover:bg-alphyn-orange/10 disabled:opacity-40 transition-all"
+            className="w-full py-3.5 border border-alphyn-orange text-alphyn-orange font-bold rounded-2xl hover:bg-alphyn-orange/10 disabled:opacity-40 transition-all capitalize"
           >
-            {realBusy ? 'Submitting…' : 'Deposit real tNIGHT'}
+            {realBusy ? 'Submitting…' : `${realMode} real tNIGHT`}
           </button>
         </div>
       )}
