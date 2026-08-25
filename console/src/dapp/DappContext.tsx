@@ -488,22 +488,33 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         setContractAddress(address);
         localStorage.setItem(lsAddr(), address);
       };
-      if (address) {
-        try {
-          contract = await joinVaultContract(providers, address, ps);
-        } catch {
-          // The contract at this address predates the current circuit set (its
-          // verifier keys don't include newer circuits like deposit/withdraw).
-          // Deploy a fresh contract that matches this build and re-point to it.
-          await deployFresh();
-        }
-      } else {
+      // A contract deployed before the current circuit set (e.g. pre-deposit/withdraw)
+      // has different verifier keys. findDeployedContract sometimes validates lazily,
+      // so the mismatch can surface at join OR at the createVault call — treat either
+      // as "incompatible" and deploy a fresh matching contract, then retry the call.
+      const isCircuitMismatch = (e: any) =>
+        /verifier key|mismatched|are undefined|operations:/i.test(String(e?.message ?? e));
+
+      const createOnce = async () => {
+        const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));
+        const mintTx = await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
+        const after = await readLeaderboard(providers, address);
+        return { before, after, mintTx };
+      };
+
+      let created: { before: Set<string>; after: Awaited<ReturnType<typeof readLeaderboard>>; mintTx: any };
+      try {
+        if (!address) throw new Error('no cached contract');
+        contract = await joinVaultContract(providers, address, ps);
+        created = await createOnce();
+      } catch (err) {
+        if (!isCircuitMismatch(err)) throw err;
+        // Incompatible (or no) contract — deploy one matching this build and retry.
         await deployFresh();
+        created = await createOnce();
       }
 
-      const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));
-      const mintTx = await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
-      const after = await readLeaderboard(providers, address);
+      const { before, after, mintTx } = created;
       setLeaderboard(after);
       const vaultId = after.find((r) => !before.has(r.id))?.id ?? `local-${Date.now()}`;
 
