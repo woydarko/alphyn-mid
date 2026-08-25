@@ -16,7 +16,7 @@ import CompactStandardLibrary;
 //   • Nobody — not other users, not an indexer, not the keeper — can read the
 //     allocation or the exact balance.
 //
-// ASSET INDICES (fixed, 4-wide vectors): 0=USDC 1=ETH 2=BTC 3=ARB
+// ASSET INDICES (fixed, 4-wide vectors): 0=DJED 1=ADA 2=NIGHT 3=SNEK
 //
 // NO SIGNED INTS in Compact → PnL is split into two monotonic unsigned
 // accumulators (gainScaled / lossScaled). Net PnL = gain − loss, computed

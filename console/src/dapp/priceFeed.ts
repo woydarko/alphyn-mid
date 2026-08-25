@@ -1,4 +1,4 @@
-// Oracle input for an epoch. Asset order is fixed: [USDC, ETH, BTC, ARB].
+// Oracle input for an epoch. Asset order is fixed: [DJED, ADA, NIGHT, SNEK].
 //
 // SECURITY NOTE: the contract accepts upBps/downBps as public parameters and cannot
 // itself verify they are truthful — so a modified client could still submit fake
@@ -7,7 +7,7 @@
 // change. Until then this reads REAL public prices (so honest clients report honest
 // numbers) and clamps to sane bounds; it never fabricates random gains.
 
-const IDS = ['usd-coin', 'ethereum', 'bitcoin', 'arbitrum'] as const; // matches [USDC, ETH, BTC, ARB]
+const IDS = ['djed', 'cardano', 'midnight-3', 'snek'] as const; // matches [DJED, ADA, NIGHT, SNEK]
 const MAX_BPS = 2000; // reject/clamp absurd single-epoch moves (>20%)
 
 export interface Oracle {

@@ -8,7 +8,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { useDapp } from '../dapp/DappContext';
 import { netPnlBps, navUsd, pnlUsd, pnlSeries, CATEGORY_STYLES } from '../dapp/notional';
 
-const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'];
+const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'];
 
 export default function VaultDetail() {
   const { id } = useParams();

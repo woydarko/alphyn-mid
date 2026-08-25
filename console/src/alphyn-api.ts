@@ -13,8 +13,8 @@ export const PRIVATE_STATE_ID = 'alphynPrivateState';
 
 export type DeployedAlphyn = Awaited<ReturnType<typeof findDeployedContract>>;
 
-// Asset order matches the contract: [USDC, ETH, BTC, ARB].
-export const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'] as const;
+// Asset order matches the contract: [DJED, ADA, NIGHT, SNEK].
+export const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'] as const;
 
 /** Deterministic allocation from a risk level 1..5 (no server/AI needed in-browser). */
 export function allocationForRisk(risk: number): [bigint, bigint, bigint, bigint] {

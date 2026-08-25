@@ -27,7 +27,7 @@ describe('keeper — epoch orchestration', () => {
   it('subsequent epoch computes returns and submits a rebalance', async () => {
     const { contract, calls } = mockContract();
     const prev: PriceVector = [1, 2000, 50000, 1.2];
-    const cur: PriceVector = [1, 2060, 49500, 1.2]; // ETH +3%, BTC -1%
+    const cur: PriceVector = [1, 2060, 49500, 1.2]; // ADA +3%, NIGHT -1%
     const r = await runEpoch(contract, prev, async () => cur);
     expect(r.skipped).toBe(false);
     expect(calls.length).toBe(1);

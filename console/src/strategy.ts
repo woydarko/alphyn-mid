@@ -3,14 +3,14 @@
 // Ported from services/src/strategy.ts for in-browser use. The output allocation
 // is the user's PRIVATE strategy: it becomes witness data and never touches the
 // chain in plaintext, only its commitment does. Asset order is FIXED and matches
-// alphyn.compact: [USDC, ETH, BTC, ARB].
+// alphyn.compact: [DJED, ADA, NIGHT, SNEK].
 //
 // If an OpenRouter key is present (VITE_OPENROUTER_API_KEY or the localStorage
 // key "alphyn-openrouter-key") the questionnaire is sent to the model. Otherwise
 // a deterministic local engine runs, so the flow works with no key, offline, and
 // with nothing leaving the browser.
 
-export const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'] as const;
+export const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'] as const;
 export type Asset = (typeof ASSETS)[number];
 
 export type Horizon = 'short' | 'mid' | 'long';
@@ -29,7 +29,7 @@ export interface Questionnaire {
 }
 
 export interface Strategy {
-  /** Percentages per asset [USDC, ETH, BTC, ARB], integers summing to 100. */
+  /** Percentages per asset [DJED, ADA, NIGHT, SNEK], integers summing to 100. */
   allocation: [number, number, number, number];
   category: Category;
   assetCount: number; // count of non-zero weights (1..4)
@@ -53,17 +53,17 @@ interface RawStrategy {
 function localStrategy(q: Questionnaire): RawStrategy {
   const aggressive = q.riskLevel >= 4;
   let base: Record<Asset, number> = aggressive
-    ? { USDC: 10, ETH: 45, BTC: 30, ARB: 15 }
+    ? { DJED: 10, ADA: 45, NIGHT: 30, SNEK: 15 }
     : q.riskLevel <= 2
-      ? { USDC: 60, ETH: 25, BTC: 15, ARB: 0 }
-      : { USDC: 35, ETH: 35, BTC: 25, ARB: 5 };
+      ? { DJED: 60, ADA: 25, NIGHT: 15, SNEK: 0 }
+      : { DJED: 35, ADA: 35, NIGHT: 25, SNEK: 5 };
 
   // Longer horizon leans a little more into growth assets.
-  if (q.horizon === 'long') base = { ...base, USDC: Math.max(0, base.USDC - 10), ETH: base.ETH + 10 };
-  if (q.horizon === 'short') base = { ...base, USDC: base.USDC + 10, ARB: Math.max(0, base.ARB - 5), BTC: Math.max(0, base.BTC - 5) };
+  if (q.horizon === 'long') base = { ...base, DJED: Math.max(0, base.DJED - 10), ADA: base.ADA + 10 };
+  if (q.horizon === 'short') base = { ...base, DJED: base.DJED + 10, SNEK: Math.max(0, base.SNEK - 5), NIGHT: Math.max(0, base.NIGHT - 5) };
 
   // A tighter drawdown tolerance shifts weight to the stable asset.
-  if (q.maxDrawdown === '5') base = { ...base, USDC: base.USDC + 15, ETH: Math.max(0, base.ETH - 10), ARB: Math.max(0, base.ARB - 5) };
+  if (q.maxDrawdown === '5') base = { ...base, DJED: base.DJED + 15, ADA: Math.max(0, base.ADA - 10), SNEK: Math.max(0, base.SNEK - 5) };
 
   return {
     allocations: base,

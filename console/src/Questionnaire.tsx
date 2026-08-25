@@ -31,7 +31,7 @@ export default function Questionnaire({
   const [step, setStep] = useState(1);
   const [risk, setRisk] = useState<RiskKey | null>(null);
   const [horizon, setHorizon] = useState<Horizon | null>(null);
-  const [assets, setAssets] = useState<Asset[]>(['USDC', 'ETH']);
+  const [assets, setAssets] = useState<Asset[]>(['DJED', 'ADA']);
   const [targetApy, setTargetApy] = useState<ApyBand | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<Drawdown | null>(null);
   const [vaultName, setVaultName] = useState('');
@@ -187,7 +187,7 @@ export default function Questionnaire({
       {step === 3 && (
         <>
           <h2 className="q-title">Preferred assets</h2>
-          <p className="q-sub">Select at least one token. Order is fixed: USDC, ETH, BTC, ARB.</p>
+          <p className="q-sub">Select at least one token. Order is fixed: DJED, ADA, NIGHT, SNEK.</p>
           <div className="grid2">
             {ASSETS.map((a) => (
               <button key={a} className={`opt ${assets.includes(a) ? 'sel' : ''}`} onClick={() => toggleAsset(a)}>
@@ -246,7 +246,7 @@ export default function Questionnaire({
           <div>
             <label className="field-label">Strategy notes <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
             <textarea rows={4} value={description} maxLength={280}
-              placeholder="e.g. Focus on ETH, hold through dips, keep some USDC as ballast."
+              placeholder="e.g. Focus on NIGHT, hold through dips, keep some DJED as ballast."
               onChange={(e) => setDescription(e.target.value)} />
             <div className="counter">{description.length}/280</div>
           </div>

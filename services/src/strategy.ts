@@ -4,11 +4,11 @@
 // PRIVATE strategy: it becomes witness data (AlphynPrivateState.allocation) and
 // is never sent to the chain in plaintext — only its commitment is.
 //
-// Asset order is FIXED and matches alphyn.compact: [USDC, ETH, BTC, ARB].
+// Asset order is FIXED and matches alphyn.compact: [DJED, ADA, NIGHT, SNEK].
 
 import { randomBytes } from 'node:crypto';
 
-export const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'] as const;
+export const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'] as const;
 export type Asset = (typeof ASSETS)[number];
 
 export type Horizon = 'short' | 'mid' | 'long';
@@ -26,7 +26,7 @@ export interface Questionnaire {
 }
 
 export interface Strategy {
-  /** Percentages per asset [USDC, ETH, BTC, ARB], integers summing to 100. */
+  /** Percentages per asset [DJED, ADA, NIGHT, SNEK], integers summing to 100. */
   allocation: [number, number, number, number];
   category: Category;
   assetCount: number;         // count of non-zero weights (1..4)
@@ -48,9 +48,14 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const SYSTEM_PROMPT =
   'You are a DeFi portfolio strategy engine. Respond ONLY with valid JSON. ' +
   'No preamble, no explanation, no markdown. Raw JSON only. Schema: ' +
-  '{ "allocations": { "USDC": number, "ETH": number, "BTC": number, "ARB": number }, ' +
+  '{ "allocations": { "DJED": number, "ADA": number, "NIGHT": number, "SNEK": number }, ' +
   '"rebalance_trigger_pct": number, "stop_loss_pct": number, ' +
   '"epoch_duration_seconds": number, "max_slippage_bps": number }. ' +
+  'Assets (Midnight/Cardano ecosystem, low->high risk): DJED = Cardano ' +
+  'stablecoin (lowest risk, capital anchor); ADA = Cardano large-cap (moderate); ' +
+  'NIGHT = Midnight network token (growth); SNEK = high-volatility small-cap ' +
+  '(highest risk). Weight toward DJED for conservative/low risk_level and toward ' +
+  'NIGHT/SNEK for aggressive/high risk_level. ' +
   'Rules: allocations must sum to exactly 100 and use ONLY the allowed assets ' +
   '(set others to 0). rebalance_trigger_pct 1-20, stop_loss_pct 2-30, ' +
   'epoch_duration_seconds 300-86400, max_slippage_bps 10-200.';
@@ -78,10 +83,10 @@ interface RawStrategy {
 function mockStrategy(q: Questionnaire): RawStrategy {
   const aggressive = q.riskLevel >= 4;
   const base: Record<Asset, number> = aggressive
-    ? { USDC: 10, ETH: 45, BTC: 30, ARB: 15 }
+    ? { DJED: 10, ADA: 45, NIGHT: 30, SNEK: 15 }
     : q.riskLevel <= 2
-      ? { USDC: 60, ETH: 25, BTC: 15, ARB: 0 }
-      : { USDC: 35, ETH: 35, BTC: 25, ARB: 5 };
+      ? { DJED: 60, ADA: 25, NIGHT: 15, SNEK: 0 }
+      : { DJED: 35, ADA: 35, NIGHT: 25, SNEK: 5 };
   return {
     allocations: base,
     rebalance_trigger_pct: aggressive ? 8 : 4,
