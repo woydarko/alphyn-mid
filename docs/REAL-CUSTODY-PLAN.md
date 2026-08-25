@@ -4,7 +4,11 @@ Plan to evolve Alphyn from a **notional** vault (paper capital, simulated PnL) t
 vault that **custodies real value on Midnight** and executes **real, deterministic
 swaps** across the basket — while keeping the ZK privacy thesis intact.
 
-Status: **planning**. No code changed yet. This document is the design of record.
+Status: **Phase 1 live**. Real tNIGHT deposit verified on-chain via browser + 1AM on
+Preprod — contract `66850e6c6ea19c2a9c450c4b55f893a7dfafca2f272b0ddec960dda516608e34`,
+deposit ContractCall in block 2261180 (tx
+`58ee057f503bdc8a819c35c967607905cdc154b78ad56b4156437e6c31a8d582`). Phases 2-3
+(signed oracle, internal basket swaps) are next.
 
 ---
 
