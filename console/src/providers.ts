@@ -78,13 +78,29 @@ export async function buildProviders(connectedAPI: any) {
       balanceTx: async (tx: any): Promise<any> => {
         const serialized = toHex(tx.serialize());
         const received = await connectedAPI.balanceUnsealedTransaction(serialized);
-        return Transaction.deserialize('signature', 'proof', 'binding', fromHex(received.tx));
+        const rawHex: string = received.tx;
+        try {
+          // Works when the wallet returns a tx this ledger build can parse.
+          return Transaction.deserialize('signature', 'proof', 'binding', fromHex(rawHex));
+        } catch {
+          // The wallet returned a newer 'proof-versioned' transaction that
+          // ledger-v8 cannot deserialize. The SDK passes this object straight to
+          // submitTx untouched (proveTx -> balanceTx -> submitTx), so we hand back
+          // a passthrough that re-serializes to the exact balanced bytes.
+          return { __passthroughHex: rawHex, serialize: () => fromHex(rawHex) };
+        }
       },
     },
     midnightProvider: {
       submitTx: async (tx: any): Promise<any> => {
-        await connectedAPI.submitTransaction(toHex(tx.serialize()));
-        return tx.identifiers()[0];
+        const hex = tx.__passthroughHex ?? toHex(tx.serialize());
+        const submitted = await connectedAPI.submitTransaction(hex);
+        // Real Transaction objects expose identifiers(); the passthrough doesn't,
+        // so fall back to the hash the wallet returns for tx-watching.
+        if (typeof tx.identifiers === 'function') {
+          try { return tx.identifiers()[0]; } catch { /* fall through */ }
+        }
+        return submitted;
       },
     },
   };
