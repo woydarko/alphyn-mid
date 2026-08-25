@@ -10,6 +10,7 @@ import {
   createVault as cvCreateVault,
   rebalance as cvRebalance,
   follow as cvFollow,
+  deposit as cvDeposit,
   readLeaderboard,
   type LeaderboardRow,
 } from '../alphyn-api';
@@ -127,6 +128,7 @@ interface DappValue {
   mint: (s: Strategy, name: string) => Promise<LocalVault>;
   runEpoch: (vaultId: string) => Promise<void>;
   setPrincipal: (vaultId: string, amount: number) => void;
+  depositReal: (vaultId: string, amount: bigint) => Promise<void>;
   renameVault: (vaultId: string, name: string) => void;
   follow: (vaultId: string, targetId: string, pct: number) => Promise<void>;
   unfollow: (vaultId: string) => Promise<void>;
@@ -563,6 +565,24 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     },
     [vaults, persist, refreshManagedVaults],
   );
+  // Real on-chain deposit (Path A phase 1): move actual tNIGHT into the vault's
+  // custody via the `deposit` circuit. `amount` is native-token base units. The
+  // wallet balancing supplies the coin the contract's receiveUnshielded pulls in.
+  const depositReal = useCallback(
+    async (vaultId: string, amount: bigint) => {
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        if (v.managed) throw new Error('Managed (bridge) vaults deposit through the bridge, not the wallet.');
+        const contract = await joinFor(v);
+        await cvDeposit(contract, amount);
+        refreshLeaderboard();
+      } catch (e) {
+        throw explainTxError(e);
+      }
+    },
+    [vaults, providers, refreshLeaderboard],
+  );
+
   const renameVault = useCallback(
     (vaultId: string, name: string) => {
       const v = vaults.find((x) => x.vaultId === vaultId);
@@ -656,6 +676,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     mint,
     runEpoch,
     setPrincipal,
+    depositReal,
     renameVault,
     follow,
     unfollow,

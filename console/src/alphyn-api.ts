@@ -57,6 +57,24 @@ export async function rebalance(contract: any, upBps: bigint[], downBps: bigint[
   return contract.callTx.rebalance(upBps, downBps);
 }
 
+// Real custody (Path A phase 1). `amount` is native-token (tNIGHT) base units.
+// The wallet balancing supplies the coin the `receiveUnshielded` in the circuit
+// pulls into contract custody.
+export async function deposit(contract: any, amount: bigint) {
+  return contract.callTx.deposit(amount);
+}
+
+// `recipient` is the Either<ContractAddress, UserAddress> the generated binding
+// expects: { is_left, left: { bytes }, right: { bytes } }. For a user payout we
+// set the right (UserAddress) branch.
+export function userRecipient(addressBytes: Uint8Array) {
+  return { is_left: false, left: { bytes: new Uint8Array(32) }, right: { bytes: addressBytes } };
+}
+
+export async function withdraw(contract: any, amount: bigint, addressBytes: Uint8Array) {
+  return contract.callTx.withdraw(amount, userRecipient(addressBytes));
+}
+
 export async function follow(contract: any, targetId: Uint8Array, pct: bigint) {
   return contract.callTx.follow(targetId, pct);
 }

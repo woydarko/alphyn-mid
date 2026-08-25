@@ -8,10 +8,29 @@ export default function Deposit() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
-  const { vaultById, setPrincipal } = useDapp();
+  const { vaultById, setPrincipal, depositReal } = useDapp();
   const v = vaultById(id!);
   const [tab, setTab] = useState<'deposit' | 'withdraw'>(sp.get('tab') === 'withdraw' ? 'withdraw' : 'deposit');
   const [amount, setAmount] = useState('');
+  const [realAmt, setRealAmt] = useState('');
+  const [realBusy, setRealBusy] = useState(false);
+  const [realMsg, setRealMsg] = useState<string | null>(null);
+
+  const submitReal = async () => {
+    const base = (() => { try { return BigInt(realAmt); } catch { return 0n; } })();
+    if (base <= 0n) return;
+    setRealBusy(true);
+    setRealMsg(null);
+    try {
+      await depositReal(v!.vaultId, base);
+      setRealMsg('Deposit submitted on-chain ✓');
+      setRealAmt('');
+    } catch (e: any) {
+      setRealMsg(e?.message ?? String(e));
+    } finally {
+      setRealBusy(false);
+    }
+  };
 
   if (!v) return <div className="max-w-2xl mx-auto px-6 py-24 text-center text-alphyn-textMuted">Vault not found.</div>;
 
@@ -36,8 +55,9 @@ export default function Deposit() {
       <div className="bg-alphyn-orange/5 border border-alphyn-orange/20 rounded-2xl p-4 flex gap-3">
         <Info className="w-5 h-5 text-alphyn-orange shrink-0 mt-0.5" />
         <p className="text-xs text-alphyn-textMuted leading-relaxed">
-          This vault is <b>notional</b>. Deposits set paper capital used to size PnL. No real tokens move — Midnight has no
-          on-chain DEX yet, so the vault proves strategy math rather than custodying assets.
+          The <b>notional</b> deposit below sets paper capital used to size PnL (no tokens move). For real on-chain custody,
+          use <b>Real deposit</b> further down — it moves actual tNIGHT into the vault. Basket swaps are oracle-priced and
+          still in progress (see the Path A plan).
         </p>
       </div>
 
@@ -85,6 +105,34 @@ export default function Deposit() {
           {tab} ${amt.toLocaleString()}
         </button>
       </div>
+
+      {!v.managed && (
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-8 space-y-4">
+          <div>
+            <h2 className="text-lg font-black">Real deposit (experimental)</h2>
+            <p className="text-xs text-alphyn-textMuted leading-relaxed mt-1">
+              Moves actual tNIGHT into the vault's on-chain custody via the <code>deposit</code> circuit.
+              Amount is in native base units. Your wallet will prompt to approve the transfer.
+            </p>
+          </div>
+          <input
+            type="number"
+            min={0}
+            value={realAmt}
+            onChange={(e) => setRealAmt(e.target.value)}
+            placeholder="amount in tNIGHT base units"
+            className="w-full px-4 py-3 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono text-lg focus:outline-none focus:border-alphyn-orange transition-colors"
+          />
+          {realMsg && <p className="text-xs font-mono break-words text-alphyn-textMuted">{realMsg}</p>}
+          <button
+            onClick={submitReal}
+            disabled={realBusy || !realAmt}
+            className="w-full py-3.5 border border-alphyn-orange text-alphyn-orange font-bold rounded-2xl hover:bg-alphyn-orange/10 disabled:opacity-40 transition-all"
+          >
+            {realBusy ? 'Submitting…' : 'Deposit real tNIGHT'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
