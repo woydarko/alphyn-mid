@@ -477,9 +477,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
       let address = contractAddress ?? localStorage.getItem(lsAddr());
       let contract: any;
-      if (address) {
-        contract = await joinVaultContract(providers, address, ps);
-      } else {
+      const deployFresh = async () => {
         const deployed = await deployContract(providers, {
           compiledContract: CompiledAlphynContract,
           privateStateId: PRIVATE_STATE_ID,
@@ -489,6 +487,18 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         contract = deployed;
         setContractAddress(address);
         localStorage.setItem(lsAddr(), address);
+      };
+      if (address) {
+        try {
+          contract = await joinVaultContract(providers, address, ps);
+        } catch {
+          // The contract at this address predates the current circuit set (its
+          // verifier keys don't include newer circuits like deposit/withdraw).
+          // Deploy a fresh contract that matches this build and re-point to it.
+          await deployFresh();
+        }
+      } else {
+        await deployFresh();
       }
 
       const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));

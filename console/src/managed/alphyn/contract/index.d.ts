@@ -15,6 +15,13 @@ export type ImpureCircuits<PS> = {
   rebalance(context: __compactRuntime.CircuitContext<PS>,
             upBps_0: bigint[],
             downBps_0: bigint[]): __compactRuntime.CircuitResults<PS, []>;
+  deposit(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  withdraw(context: __compactRuntime.CircuitContext<PS>,
+           amount_0: bigint,
+           recipient_0: { is_left: boolean,
+                          left: { bytes: Uint8Array },
+                          right: { bytes: Uint8Array }
+                        }): __compactRuntime.CircuitResults<PS, []>;
   follow(context: __compactRuntime.CircuitContext<PS>,
          targetId_0: Uint8Array,
          pct_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -29,6 +36,13 @@ export type ProvableCircuits<PS> = {
   rebalance(context: __compactRuntime.CircuitContext<PS>,
             upBps_0: bigint[],
             downBps_0: bigint[]): __compactRuntime.CircuitResults<PS, []>;
+  deposit(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  withdraw(context: __compactRuntime.CircuitContext<PS>,
+           amount_0: bigint,
+           recipient_0: { is_left: boolean,
+                          left: { bytes: Uint8Array },
+                          right: { bytes: Uint8Array }
+                        }): __compactRuntime.CircuitResults<PS, []>;
   follow(context: __compactRuntime.CircuitContext<PS>,
          targetId_0: Uint8Array,
          pct_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -48,6 +62,13 @@ export type Circuits<PS> = {
   rebalance(context: __compactRuntime.CircuitContext<PS>,
             upBps_0: bigint[],
             downBps_0: bigint[]): __compactRuntime.CircuitResults<PS, []>;
+  deposit(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  withdraw(context: __compactRuntime.CircuitContext<PS>,
+           amount_0: bigint,
+           recipient_0: { is_left: boolean,
+                          left: { bytes: Uint8Array },
+                          right: { bytes: Uint8Array }
+                        }): __compactRuntime.CircuitResults<PS, []>;
   follow(context: __compactRuntime.CircuitContext<PS>,
          targetId_0: Uint8Array,
          pct_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -86,6 +107,13 @@ export type Ledger = {
     member(key_0: Uint8Array): boolean;
     lookup(key_0: Uint8Array): Uint8Array;
     [Symbol.iterator](): Iterator<[Uint8Array, Uint8Array]>
+  };
+  custody: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(key_0: Uint8Array): boolean;
+    lookup(key_0: Uint8Array): bigint;
+    [Symbol.iterator](): Iterator<[Uint8Array, bigint]>
   };
 }
 
