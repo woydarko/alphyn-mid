@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useDapp } from '../dapp/DappContext';
-import { netPnlBps, navUsd, pnlUsd, pnlSeries, CATEGORY_STYLES } from '../dapp/notional';
+import { netPnlBps, navTNight, pnlTNight, pnlSeries, CATEGORY_STYLES } from '../dapp/metrics';
 
 const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'];
 
@@ -123,13 +123,13 @@ export default function VaultDetail() {
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
-          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Notional NAV</p>
-          <div className="text-3xl font-black font-mono">${navUsd(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Custody NAV</p>
+          <div className="text-3xl font-black font-mono">{navTNight(v).toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-lg">tNIGHT</span></div>
           <div className="mt-4 px-2.5 py-1 bg-alphyn-orange/10 border border-alphyn-orange/20 rounded-lg inline-flex items-center gap-1.5">
-            <Eye className="w-3 h-3 text-alphyn-orange" />
-            <span className="text-[10px] font-bold text-alphyn-orange uppercase tracking-widest">Paper capital</span>
+            <ShieldCheck className="w-3 h-3 text-alphyn-orange" />
+            <span className="text-[10px] font-bold text-alphyn-orange uppercase tracking-widest">Real custody</span>
           </div>
-          <p className="text-[10px] text-alphyn-textMuted mt-2">Principal ${v.principal.toLocaleString()} · notional, no custody.</p>
+          <p className="text-[10px] text-alphyn-textMuted mt-2">Custody {v.principal.toLocaleString()} tNIGHT · held on-chain.</p>
         </div>
 
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
@@ -139,7 +139,7 @@ export default function VaultDetail() {
             {isPos ? '+' : ''}{pnlPct.toFixed(2)}%
           </div>
           <div className="mt-5 text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">
-            {pnlUsd(v) >= 0 ? '+' : ''}${pnlUsd(v).toLocaleString(undefined, { maximumFractionDigits: 0 })} since inception
+            {pnlTNight(v) >= 0 ? '+' : ''}{pnlTNight(v).toLocaleString(undefined, { maximumFractionDigits: 0 })} tNIGHT since inception
           </div>
         </div>
 
@@ -151,7 +151,7 @@ export default function VaultDetail() {
               <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2">
                 Fund to start
               </button>
-              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit notional capital to activate epochs.</p>
+              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit tNIGHT to activate epochs.</p>
             </>
           ) : (
             v.managed ? (

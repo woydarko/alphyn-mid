@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Plus, BarChart3, Clock, Wallet, ArrowRight } from 'lucide-react';
 import { useDapp, type LocalVault } from '../dapp/DappContext';
-import { netPnlBps, maxDrawdownBps, CATEGORY_STYLES } from '../dapp/notional';
+import { netPnlBps, maxDrawdownBps, CATEGORY_STYLES } from '../dapp/metrics';
 
 function VaultCard({ v, onClick }: { v: LocalVault; onClick: () => void }) {
   const pnl = netPnlBps(v) / 100;

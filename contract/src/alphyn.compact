@@ -48,7 +48,7 @@ export ledger vaultCount: Counter;
 // own allocation % stays private (never disclosed).
 export ledger follows: Map<Bytes<32>, Bytes<32>>;
 // vaultId → real native-token (tNIGHT) balance the contract custodies for it.
-// Path A phase 1: deposits/withdrawals move REAL coins, not notional capital.
+// Path A phase 1: deposits/withdrawals move REAL native tNIGHT in/out of custody.
 export ledger custody: Map<Bytes<32>, Uint<128>>;
 
 // ─── Private witnesses (implemented in TypeScript, never on-chain) ────────────

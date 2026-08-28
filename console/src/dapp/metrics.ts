@@ -1,13 +1,13 @@
 import type { LocalVault } from './DappContext';
 
-// All figures are notional (paper): the vault tracks PnL against an off-chain
-// oracle, no real custody. Principal is the user's chosen starting capital.
+// Vault metrics over REAL custody. `principal` is the vault's on-chain custodied
+// tNIGHT (native base units); PnL is proven per epoch on-chain and applied to it.
 
 export const netPnlBps = (v: LocalVault): number => v.epochs.reduce((s, e) => s + e.pnlBps, 0);
 
-export const navUsd = (v: LocalVault): number => v.principal * (1 + netPnlBps(v) / 10000);
+export const navTNight = (v: LocalVault): number => v.principal * (1 + netPnlBps(v) / 10000);
 
-export const pnlUsd = (v: LocalVault): number => navUsd(v) - v.principal;
+export const pnlTNight = (v: LocalVault): number => navTNight(v) - v.principal;
 
 export const sharpe = (v: LocalVault): number => {
   const xs = v.epochs.map((e) => e.pnlBps);

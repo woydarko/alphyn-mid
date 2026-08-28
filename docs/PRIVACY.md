@@ -25,7 +25,7 @@ compiler, not by convention.
 | **The allocation weights** | Live only as `allocation()` witness data on the user's machine. Only their commitment is public. Never wrapped in `disclose()` → the compiler *guarantees* they cannot reach the ledger. |
 | The vault secret key | `localSecretKey()` witness - owning it is owning the vault. Only its hash (the vaultId) is public. |
 | The commitment nonce | `allocationNonce()` witness - salts the commitment so it can't be brute-forced from the small space of possible allocations. |
-| Exact balance / principal | Notional balance is private state; the ledger holds only aggregate scaled PnL. |
+| Per-asset allocation weights | The private witness `allocation()`; only its commitment is public. The custodied tNIGHT *total* is on-chain, but how it splits across the basket is never revealed. |
 | Per-asset positions or PnL | Only the summed `gainScaled`/`lossScaled` are disclosed, never the per-asset breakdown. |
 | A followed vault's strategy | `follow` never reads the target's allocation - it only records a public link. |
 
@@ -65,5 +65,7 @@ analysis makes leaking them a compile error - the guarantee is structural.
   Like any oracle (the EVM original used Pyth), the prices themselves are trusted
   inputs. The ZK proof covers that PnL was weighted by the *committed allocation* -
   not that the prices are true.
-- **Notional model**: no real DEX exists on Midnight, so positions are notional;
-  there is no on-chain custody/settlement of the underlying assets.
+- **Custody model**: the vault custodies real tNIGHT on-chain (`deposit` /
+  `withdraw` circuits). Oracle-priced swaps of that balance into the basket are
+  rolling out; until then the basket exposure is tracked, not settled as real
+  ADA/DJED/SNEK (those tokens don't exist natively on Midnight).

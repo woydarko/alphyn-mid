@@ -229,8 +229,8 @@ export default function Landing() {
           <div className="mt-8 flex gap-2 bg-alphyn-orange/5 border border-alphyn-orange/20 rounded-2xl px-4 py-3 max-w-3xl">
             <Info className="w-4 h-4 text-alphyn-orange shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed text-alphyn-textMuted">
-              <span className="font-bold text-alphyn-text">Note:</span> Midnight has no live DEX yet, so Alphyn cannot add liquidity to real pools.
-              Strategies run on notional capital — allocations are committed and PnL is proven in zero-knowledge on-chain, ready to route to a DEX once one ships.
+              <span className="font-bold text-alphyn-text">Note:</span> Vaults custody real tNIGHT on-chain (deposit/withdraw are live circuits).
+              Allocations stay private, PnL is proven in zero-knowledge, and oracle-priced basket swaps are rolling out (see the Path A plan).
             </p>
           </div>
         </section>

@@ -38,12 +38,14 @@ commitment (a hash), and the per-epoch `gainAdd` / `lossAdd` sums. The raw
 weights are never wrapped in `disclose()`, so the compiler guarantees they can't
 leak.
 
-## Notional model
+## Custody + PnL model
 
-Midnight has no on-chain DEX, so the vault is **notional/paper**: `upBps` /
-`downBps` are public oracle price-returns fed into `rebalance`; there are no real
-token swaps. PnL is `Σ_i weight_i · returnBps_i`, accumulated on-chain, divided
-by 100 off-chain for display.
+The vault **custodies real tNIGHT on-chain**: `deposit` and `withdraw` move the
+native token in and out via `receiveUnshielded` / `sendUnshielded`, tracked in the
+`custody` ledger map. PnL is proven on top: `upBps` / `downBps` are public oracle
+price-returns fed into `rebalance`, and PnL is `Σ_i weight_i · returnBps_i`,
+accumulated on-chain and divided by 100 off-chain for display. Oracle-priced swaps
+of the custodied balance into the basket are the next step (see the Path A plan).
 
 ## Build
 

@@ -270,7 +270,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     for (const r of records) {
       if (r.managed) {
         // Secrets live in the local bridge; the browser only needs the public
-        // shape plus the allocation for display and notional math.
+        // shape plus the allocation for display and PnL math.
         out.push({ ...r, secretHex: '', nonceHex: '', allocation: r.allocationPlain ?? [0, 0, 0, 0], locked: false });
         continue;
       }
@@ -601,12 +601,14 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         if (v.managed) throw new Error('Managed (bridge) vaults deposit through the bridge, not the wallet.');
         const contract = await joinFor(v);
         await cvDeposit(contract, amount);
+        // principal mirrors real custody (Σ deposits − withdrawals).
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: x.principal + Number(amount) } : x)));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard],
   );
 
   // Read a vault's real on-chain custody balance (native base units).
@@ -635,12 +637,13 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         );
         const contract = await joinFor(v);
         await cvWithdraw(contract, amount, addrBytes);
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: Math.max(0, x.principal - Number(amount)) } : x)));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);
       }
     },
-    [vaults, providers, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard],
   );
 
   const renameVault = useCallback(

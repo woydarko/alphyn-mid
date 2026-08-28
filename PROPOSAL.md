@@ -33,6 +33,6 @@ A trusted execution environment could hide the strategy too, and the earlier ver
 
 The privacy core is done and works on a live testnet, so the hard part is behind us. What is left before Mainnet is mostly product surface and honesty about scope.
 
-The one real design constraint is that Midnight does not have an on-chain DEX yet, so the vault is notional. It tracks positions against an off-chain price feed and proves the math, rather than custodying and swapping real assets. That is the right shape for now and it is enough to prove the idea. Real settlement waits on DEX infrastructure landing on Midnight.
+The vault custodies **real tNIGHT on-chain** — `deposit` and `withdraw` are live circuits that move the native token in and out, verified on Preprod. PnL is proven on top against an off-chain price feed. The one remaining constraint is that Midnight has no liquid DEX for the Cardano-ecosystem basket (ADA/DJED/SNEK don't exist natively on Midnight), so swapping the custodied balance into the basket is done at oracle prices rather than through real pools. That is the honest shape for now and it is enough to prove the idea; deeper settlement waits on DEX infrastructure landing on Midnight.
 
-Reaching Mainnet by the end of the program is realistic for the notional version: same contract, same circuits, a network switch and a redeploy. Turning it into something that manages real value is a larger step that depends on the ecosystem, not on this codebase.
+Reaching Mainnet by the end of the program is realistic: same contract, same circuits, a network switch and a redeploy. Managing real basket exposure end to end is a larger step that depends on the ecosystem, not on this codebase.

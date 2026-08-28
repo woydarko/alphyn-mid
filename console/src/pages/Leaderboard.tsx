@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Users, ArrowRight, Loader2, X } from 'lucide-react';
 import { useDapp } from '../dapp/DappContext';
-import { CATEGORY_STYLES } from '../dapp/notional';
+import { CATEGORY_STYLES } from '../dapp/metrics';
 import type { LeaderboardRow } from '../alphyn-api';
 
 const CAT = ['conservative', 'balanced', 'aggressive'];
