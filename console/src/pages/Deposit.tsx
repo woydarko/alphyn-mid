@@ -7,20 +7,25 @@ export default function Deposit() {
   const { id } = useParams();
   const nav = useNavigate();
   const [sp] = useSearchParams();
-  const { vaultById, depositReal, withdrawReal, vaultCustody } = useDapp();
+  const { vaultById, depositReal, withdrawReal, vaultCustody, walletNightBalance } = useDapp();
   const v = vaultById(id!);
   const [mode, setMode] = useState<'deposit' | 'withdraw'>(sp.get('tab') === 'withdraw' ? 'withdraw' : 'deposit');
   const [amt, setAmt] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [custody, setCustody] = useState<bigint | null>(null);
+  const [walletBal, setWalletBal] = useState<bigint | null>(null);
 
-  const refreshCustody = useCallback(() => {
+  const refreshBalances = useCallback(() => {
     if (!v) return;
     vaultCustody(v.vaultId).then(setCustody).catch(() => setCustody(null));
-  }, [v, vaultCustody]);
+    walletNightBalance().then(setWalletBal).catch(() => setWalletBal(null));
+  }, [v, vaultCustody, walletNightBalance]);
 
-  useEffect(() => { refreshCustody(); }, [refreshCustody]);
+  useEffect(() => { refreshBalances(); }, [refreshBalances]);
+
+  const available = mode === 'deposit' ? walletBal : custody;
+  const setMax = () => { if (available != null) setAmt(available.toString()); };
 
   if (!v) return <div className="max-w-2xl mx-auto px-6 py-24 text-center text-alphyn-textMuted">Vault not found.</div>;
 
@@ -34,7 +39,7 @@ export default function Deposit() {
       else await withdrawReal(v.vaultId, base);
       setMsg(`${mode === 'deposit' ? 'Deposit' : 'Withdraw'} submitted on-chain ✓`);
       setAmt('');
-      setTimeout(refreshCustody, 4000);
+      setTimeout(refreshBalances, 4000);
     } catch (e: any) {
       setMsg(e?.message ?? String(e));
     } finally {
@@ -84,14 +89,29 @@ export default function Deposit() {
           ))}
         </div>
 
-        <input
-          type="number"
-          min={0}
-          value={amt}
-          onChange={(e) => setAmt(e.target.value)}
-          placeholder="amount in tNIGHT base units"
-          className="w-full px-4 py-3 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono text-lg focus:outline-none focus:border-alphyn-orange transition-colors"
-        />
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs text-alphyn-textMuted">
+            <span>{mode === 'deposit' ? 'Wallet balance' : 'Vault custody'}</span>
+            <span className="font-mono">{available === null ? '…' : `${available.toLocaleString()} tNIGHT`}</span>
+          </div>
+          <div className="relative">
+            <input
+              type="number"
+              min={0}
+              value={amt}
+              onChange={(e) => setAmt(e.target.value)}
+              placeholder="amount in tNIGHT base units"
+              className="w-full px-4 py-3 pr-16 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono text-lg focus:outline-none focus:border-alphyn-orange transition-colors"
+            />
+            <button
+              onClick={setMax}
+              disabled={available == null || available <= 0n}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-bold text-alphyn-orange bg-alphyn-orange/10 rounded-lg hover:bg-alphyn-orange/20 disabled:opacity-40 transition-colors"
+            >
+              MAX
+            </button>
+          </div>
+        </div>
 
         {msg && <p className="text-xs font-mono break-words text-alphyn-textMuted">{msg}</p>}
 

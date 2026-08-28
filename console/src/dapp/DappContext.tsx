@@ -134,6 +134,7 @@ interface DappValue {
   depositReal: (vaultId: string, amount: bigint) => Promise<void>;
   withdrawReal: (vaultId: string, amount: bigint) => Promise<void>;
   vaultCustody: (vaultId: string) => Promise<bigint>;
+  walletNightBalance: () => Promise<bigint>;
   renameVault: (vaultId: string, name: string) => void;
   follow: (vaultId: string, targetId: string, pct: number) => Promise<void>;
   unfollow: (vaultId: string) => Promise<void>;
@@ -611,6 +612,19 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     [vaults, providers, persist, refreshLeaderboard],
   );
 
+  // The connected wallet's unshielded tNIGHT balance (base units). On Preprod the
+  // only unshielded token is Night, so the sum of unshielded balances is it.
+  const walletNightBalance = useCallback(async (): Promise<bigint> => {
+    const api = apiRef.current;
+    if (!api || typeof api.getUnshieldedBalances !== 'function') return 0n;
+    try {
+      const balances = await api.getUnshieldedBalances();
+      return Object.values(balances ?? {}).reduce<bigint>((a, b) => a + BigInt(b as any), 0n);
+    } catch {
+      return 0n;
+    }
+  }, []);
+
   // Read a vault's real on-chain custody balance (native base units).
   const vaultCustody = useCallback(
     async (vaultId: string): Promise<bigint> => {
@@ -742,6 +756,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     depositReal,
     withdrawReal,
     vaultCustody,
+    walletNightBalance,
     renameVault,
     follow,
     unfollow,
