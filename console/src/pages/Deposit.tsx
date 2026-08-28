@@ -74,8 +74,8 @@ export default function Deposit() {
         </div>
 
         <p className="text-xs text-alphyn-textMuted leading-relaxed">
-          Real tNIGHT moves in and out of the vault&apos;s custody via the <code>deposit</code> /{' '}
-          <code>withdraw</code> circuits. Amounts are native base units; your wallet approves the transfer.
+          Real tNIGHT moves in and out of the vault&apos;s custody. A <b>deposit also runs one epoch</b> in the
+          same transaction — funding the vault advances it, no separate &quot;Run epoch&quot; signature needed.
         </p>
 
         <div className="flex bg-background border border-alphyn-surfaceBorder rounded-xl p-1">

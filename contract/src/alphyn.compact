@@ -202,6 +202,58 @@ export circuit withdraw(amount: Uint<128>, recipient: Either<ContractAddress, Us
   sendUnshielded(nativeToken(), amt, disclose(recipient));
 }
 
+// Deposit AND run one epoch in a single transaction (one signature). Credits the
+// custody balance with real tNIGHT, then — using the same committed allocation —
+// records this epoch's PnL from the public oracle returns. Combines `deposit` and
+// `rebalance` so funding a vault also advances it, with no separate epoch tx.
+export circuit depositAndRebalance(
+  amount:  Uint<128>,
+  upBps:   Vector<4, Uint<32>>,
+  downBps: Vector<4, Uint<32>>
+): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+
+  const v = vaults.lookup(id);
+  assert(v.active, "vault inactive");
+
+  // Re-prove the committed allocation (same guarantee as `rebalance`).
+  const alloc = allocation();
+  const recomputed = commitAllocation(alloc, allocationNonce());
+  assert(recomputed == v.allocCommitment, "allocation does not match commitment");
+
+  // ── deposit: pull real tNIGHT into custody ──
+  receiveUnshielded(nativeToken(), amt);
+  const newCustody = (custody.member(id) ? custody.lookup(id) + amt : amt) as Uint<128>;
+  custody.insert(id, newCustody);
+
+  // ── epoch: weighted unsigned PnL from the public oracle (4-wide, unrolled) ──
+  const w0 = alloc[0] as Uint<64>;
+  const w1 = alloc[1] as Uint<64>;
+  const w2 = alloc[2] as Uint<64>;
+  const w3 = alloc[3] as Uint<64>;
+  const gainAdd =
+    w0 * (upBps[0] as Uint<64>) + w1 * (upBps[1] as Uint<64>) +
+    w2 * (upBps[2] as Uint<64>) + w3 * (upBps[3] as Uint<64>);
+  const lossAdd =
+    w0 * (downBps[0] as Uint<64>) + w1 * (downBps[1] as Uint<64>) +
+    w2 * (downBps[2] as Uint<64>) + w3 * (downBps[3] as Uint<64>);
+
+  vaults.insert(id, VaultStats {
+    allocCommitment: v.allocCommitment,
+    category:        v.category,
+    assetCount:      v.assetCount,
+    epochCount:      (v.epochCount + 1) as Uint<32>,
+    gainScaled:      (v.gainScaled + disclose(gainAdd)) as Uint<64>,
+    lossScaled:      (v.lossScaled + disclose(lossAdd)) as Uint<64>,
+    followers:       v.followers,
+    active:          v.active,
+  });
+}
+
 // Follow another vault's DIRECTION. Public: follower→target link + target's
 // follower count. Private: the follower's own allocation and balance are never
 // revealed, and the target's allocation is never read.

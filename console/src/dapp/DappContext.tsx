@@ -11,6 +11,7 @@ import {
   rebalance as cvRebalance,
   follow as cvFollow,
   deposit as cvDeposit,
+  depositAndRebalance as cvDepositAndRebalance,
   withdraw as cvWithdraw,
   readVaultCustody,
   readLeaderboard,
@@ -184,6 +185,9 @@ function assertTxSucceeded(res: any, label: string): void {
     );
   }
 }
+
+const isCircuitMismatch = (e: any) =>
+  /verifier key|mismatched|are undefined|operations:/i.test(String(e?.message ?? e));
 
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
@@ -613,11 +617,38 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       try {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
         if (v.managed) throw new Error('Managed (bridge) vaults deposit through the bridge, not the wallet.');
+        // Deposit AND run one epoch in a single signature. Pull oracle returns;
+        // if the feed is down, fall back to a flat epoch so the deposit still
+        // goes through (custody is credited, PnL just doesn't move this epoch).
+        let up = [0, 0, 0, 0];
+        let down = [0, 0, 0, 0];
+        try { const o = await fetchOracle(); up = o.up; down = o.down; } catch { /* flat epoch */ }
+
         const contract = await joinFor(v);
-        const res: any = await cvDeposit(contract, amount);
-        assertTxSucceeded(res, 'Deposit');
-        // principal mirrors real custody (Σ deposits − withdrawals).
-        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: x.principal + Number(amount) } : x)));
+        let ranEpoch = true;
+        try {
+          const res: any = await cvDepositAndRebalance(contract, amount, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+          assertTxSucceeded(res, 'Deposit');
+        } catch (err) {
+          if (!isCircuitMismatch(err)) throw err;
+          // Vault predates depositAndRebalance — plain deposit, no epoch this time.
+          const res2: any = await cvDeposit(contract, amount);
+          assertTxSucceeded(res2, 'Deposit');
+          ranEpoch = false;
+        }
+
+        // Mirror on-chain effects locally: principal += deposit, and (if it ran) the epoch.
+        const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
+        const pnlBps = Math.round(num / 100);
+        await persist(vaults.map((x) =>
+          x.vaultId === vaultId
+            ? {
+                ...x,
+                principal: x.principal + Number(amount),
+                epochs: ranEpoch ? [...x.epochs, { n: x.epochs.length + 1, pnlBps, ts: Date.now() }] : x.epochs,
+              }
+            : x,
+        ));
         refreshLeaderboard();
       } catch (e) {
         throw explainTxError(e);

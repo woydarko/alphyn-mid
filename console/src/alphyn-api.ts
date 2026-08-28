@@ -64,6 +64,12 @@ export async function deposit(contract: any, amount: bigint) {
   return contract.callTx.deposit(amount);
 }
 
+// Deposit AND run one epoch in a single tx (one signature): credits custody and
+// records this epoch's PnL from the public oracle returns.
+export async function depositAndRebalance(contract: any, amount: bigint, upBps: bigint[], downBps: bigint[]) {
+  return contract.callTx.depositAndRebalance(amount, upBps, downBps);
+}
+
 // `recipient` is the Either<ContractAddress, UserAddress> the generated binding
 // expects: { is_left, left: { bytes }, right: { bytes } }. For a user payout we
 // set the right (UserAddress) branch.
