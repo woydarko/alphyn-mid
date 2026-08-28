@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
 import { useDapp } from '../dapp/DappContext';
+import { fmtNight, nightToStar, starToNight } from '../dapp/night';
 
 export default function Deposit() {
   const { id } = useParams();
@@ -25,12 +26,12 @@ export default function Deposit() {
   useEffect(() => { refreshBalances(); }, [refreshBalances]);
 
   const available = mode === 'deposit' ? walletBal : custody;
-  const setMax = () => { if (available != null) setAmt(available.toString()); };
+  const setMax = () => { if (available != null) setAmt(String(starToNight(available))); };
 
   if (!v) return <div className="max-w-2xl mx-auto px-6 py-24 text-center text-alphyn-textMuted">Vault not found.</div>;
 
   const submit = async () => {
-    const base = (() => { try { return BigInt(amt); } catch { return 0n; } })();
+    const base = nightToStar(amt);
     if (base <= 0n) return;
     setBusy(true);
     setMsg(null);
@@ -64,7 +65,7 @@ export default function Deposit() {
           </div>
           <div className="text-right">
             <div className="text-2xl font-black font-mono text-alphyn-orange">
-              {custody === null ? '…' : custody.toString()} <span className="text-sm">tNIGHT</span>
+              {custody === null ? '…' : fmtNight(custody)} <span className="text-sm">tNIGHT</span>
             </div>
             <div className="text-[10px] text-alphyn-textMuted uppercase tracking-widest">held in vault</div>
           </div>
@@ -92,15 +93,16 @@ export default function Deposit() {
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-alphyn-textMuted">
             <span>{mode === 'deposit' ? 'Wallet balance' : 'Vault custody'}</span>
-            <span className="font-mono">{available === null ? '…' : `${available.toLocaleString()} tNIGHT`}</span>
+            <span className="font-mono">{available === null ? '…' : `${fmtNight(available)} tNIGHT`}</span>
           </div>
           <div className="relative">
             <input
               type="number"
               min={0}
+              step="any"
               value={amt}
               onChange={(e) => setAmt(e.target.value)}
-              placeholder="amount in tNIGHT base units"
+              placeholder="amount in tNIGHT"
               className="w-full px-4 py-3 pr-16 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono text-lg focus:outline-none focus:border-alphyn-orange transition-colors"
             />
             <button

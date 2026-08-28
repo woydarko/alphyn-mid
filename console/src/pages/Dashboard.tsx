@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Plus, BarChart3, Clock, Wallet, ArrowRight } from 'lucide-react';
 import { useDapp, type LocalVault } from '../dapp/DappContext';
 import { netPnlBps, CATEGORY_STYLES } from '../dapp/metrics';
+import { fmtNight } from '../dapp/night';
 
 function VaultCard({ v, onClick }: { v: LocalVault; onClick: () => void }) {
   const pnl = netPnlBps(v) / 100;
@@ -27,7 +28,7 @@ function VaultCard({ v, onClick }: { v: LocalVault; onClick: () => void }) {
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[
-          ['Custody', `${v.principal.toLocaleString()}`],
+          ['Custody', fmtNight(v.principal)],
           ['Epochs', String(v.epochs.length)],
           ['Assets', String(assets)],
         ].map(([l, val]) => (
@@ -87,7 +88,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Total Vaults" value={String(vaults.length)} sub="on-chain" icon={<Wallet className="w-5 h-5 text-alphyn-textMuted" />} />
-        <Stat label="Total Custody" value={`${totalCustody.toLocaleString()}`} sub="tNIGHT held on-chain" icon={<Clock className="w-5 h-5 text-alphyn-orange" />} />
+        <Stat label="Total Custody" value={fmtNight(totalCustody)} sub="tNIGHT held on-chain" icon={<Clock className="w-5 h-5 text-alphyn-orange" />} />
         <Stat label="Avg PnL" value={`${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%`} sub="across all vaults" icon={<BarChart3 className={`w-5 h-5 ${avgPnl >= 0 ? 'text-green-400' : 'text-red-400'}`} />} />
         <Stat label="Best Vault" value={`${bestPnl >= 0 ? '+' : ''}${bestPnl.toFixed(2)}%`} sub="cumulative PnL" icon={<TrendingUp className={`w-5 h-5 ${bestPnl >= 0 ? 'text-green-400' : 'text-red-400'}`} />} />
       </div>

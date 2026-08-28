@@ -7,6 +7,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useDapp } from '../dapp/DappContext';
 import { netPnlBps, navTNight, pnlTNight, pnlSeries, CATEGORY_STYLES } from '../dapp/metrics';
+import { fmtNight } from '../dapp/night';
 
 const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'];
 
@@ -124,12 +125,12 @@ export default function VaultDetail() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Custody NAV</p>
-          <div className="text-3xl font-black font-mono">{navTNight(v).toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-lg">tNIGHT</span></div>
+          <div className="text-3xl font-black font-mono">{fmtNight(navTNight(v))} <span className="text-lg">tNIGHT</span></div>
           <div className="mt-4 px-2.5 py-1 bg-alphyn-orange/10 border border-alphyn-orange/20 rounded-lg inline-flex items-center gap-1.5">
             <ShieldCheck className="w-3 h-3 text-alphyn-orange" />
             <span className="text-[10px] font-bold text-alphyn-orange uppercase tracking-widest">Real custody</span>
           </div>
-          <p className="text-[10px] text-alphyn-textMuted mt-2">Custody {v.principal.toLocaleString()} tNIGHT · held on-chain.</p>
+          <p className="text-[10px] text-alphyn-textMuted mt-2">Custody {fmtNight(v.principal)} tNIGHT · held on-chain.</p>
         </div>
 
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
@@ -139,7 +140,7 @@ export default function VaultDetail() {
             {isPos ? '+' : ''}{pnlPct.toFixed(2)}%
           </div>
           <div className="mt-5 text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">
-            {pnlTNight(v) >= 0 ? '+' : ''}{pnlTNight(v).toLocaleString(undefined, { maximumFractionDigits: 0 })} tNIGHT since inception
+            {pnlTNight(v) >= 0 ? '+' : ''}{fmtNight(pnlTNight(v))} tNIGHT since inception
           </div>
         </div>
 
