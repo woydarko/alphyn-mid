@@ -49,7 +49,7 @@ export default function CreateVault() {
   if (phase === 'error') {
     return (
       <div className="max-w-2xl mx-auto px-6 py-24 text-center space-y-5">
-        <AlertTriangle className="w-12 h-12 text-red-600 mx-auto" />
+        <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
         <h2 className="text-2xl font-black">Mint failed</h2>
         <p className="text-alphyn-textMuted text-sm break-words bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3 font-mono">
           {error}

@@ -27,7 +27,7 @@ export default function Epochs() {
 
       <div className="flex items-center gap-6 text-sm text-alphyn-textMuted border-b border-alphyn-surfaceBorder pb-6">
         <span><span className="text-alphyn-text font-bold">{v.epochs.length}</span> total epochs</span>
-        <span>Net <span className={`font-bold font-mono ${cum >= 0 ? 'text-green-600' : 'text-red-600'}`}>{cum >= 0 ? '+' : ''}{(cum / 100).toFixed(2)}%</span></span>
+        <span>Net <span className={`font-bold font-mono ${cum >= 0 ? 'text-green-400' : 'text-red-400'}`}>{cum >= 0 ? '+' : ''}{(cum / 100).toFixed(2)}%</span></span>
       </div>
 
       {rows.length === 0 ? (
@@ -48,13 +48,13 @@ export default function Epochs() {
                 <tr key={e.n} className="hover:bg-alphyn-surfaceHover/40 transition-colors">
                   <td className="p-4 font-bold font-mono">#{e.n}</td>
                   <td className="p-4">
-                    <span className={`flex items-center gap-1 font-bold font-mono ${e.pnlBps >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`flex items-center gap-1 font-bold font-mono ${e.pnlBps >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {e.pnlBps >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                       {e.pnlBps >= 0 ? '+' : ''}{(e.pnlBps / 100).toFixed(2)}%
                     </span>
                   </td>
                   <td className="p-4 hidden md:table-cell">
-                    <span className="flex items-center gap-1.5 text-green-600/70 text-xs font-mono"><ShieldCheck className="w-3 h-3" /> ZK verified</span>
+                    <span className="flex items-center gap-1.5 text-green-400/70 text-xs font-mono"><ShieldCheck className="w-3 h-3" /> ZK verified</span>
                   </td>
                   <td className="p-4 text-alphyn-textMuted text-xs">{new Date(e.ts).toLocaleString()}</td>
                 </tr>

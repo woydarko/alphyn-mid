@@ -93,7 +93,7 @@ export default function Landing() {
       `}} />
 
       {wrongNetwork && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-500/10 border-b border-red-500/30 text-red-400 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4" /> Switch your wallet to Preprod to transact safely.
         </div>
       )}
@@ -144,7 +144,7 @@ export default function Landing() {
                 AI-generated<br />
                 <span className="relative inline-block cursor-crosshair group/secret">
                   <span className="inline-block text-alphyn-text/10 blur-[4px] transition-all duration-700 group-hover/secret:opacity-0 group-hover/secret:blur-xl">private</span>
-                  <span className="absolute left-0 top-0 opacity-0 group-hover/secret:opacity-100 group-hover/secret:-translate-y-2 transition-all duration-700 bg-clip-text text-transparent bg-gradient-to-br from-[#FF5E1A] via-[#FF9559] to-[#FFE0CC] drop-shadow-[0_10px_25px_rgba(255,94,26,0.6)]">private</span>
+                  <span className="absolute left-0 top-0 opacity-0 group-hover/secret:opacity-100 group-hover/secret:-translate-y-2 transition-all duration-700 bg-clip-text text-transparent bg-gradient-to-br from-[#8B5CF6] via-[#A78BFA] to-[#DDD6FE] drop-shadow-[0_10px_25px_rgba(139,92,246,0.6)]">private</span>
                 </span><br />
                 vault strategy.
               </h1>
@@ -156,7 +156,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row items-center gap-5 pt-4">
                 <button
                   onClick={launchApp} disabled={connecting}
-                  className="w-full sm:w-auto px-10 py-5 bg-[#FF5E1A] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-xl shadow-orange-500/20 disabled:opacity-60"
+                  className="w-full sm:w-auto px-10 py-5 bg-[#8B5CF6] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#7C3AED] transition-all flex items-center justify-center gap-3 border-b-4 border-[#6D28D9] shadow-xl shadow-purple-500/20 disabled:opacity-60"
                 >
                   {connecting ? 'Connecting…' : connected ? 'Launch App' : 'Connect & Launch'} <ArrowRight className="w-5 h-5" />
                 </button>
@@ -167,7 +167,7 @@ export default function Landing() {
                   See How It Works
                 </a>
               </div>
-              {error && <p className="text-sm text-red-600 max-w-md break-words">{error}</p>}
+              {error && <p className="text-sm text-red-400 max-w-md break-words">{error}</p>}
             </div>
 
             {/* Hero Visual */}
@@ -318,10 +318,10 @@ export default function Landing() {
             ].map((item) => (
               <div key={item.step} className={`lg:absolute ${item.position} ${item.rotation} lg:w-[420px] bg-background border border-alphyn-surfaceBorder rounded-3xl p-6 hover:border-alphyn-orange/60 transition-all duration-500 group shadow-2xl text-left flex flex-col relative z-10 hover:rotate-0 hover:scale-[1.02] hover:z-20`}>
                 <div className="flex justify-between items-start mb-6">
-                  <div className="w-12 h-12 bg-alphyn-surface border border-alphyn-surfaceBorder rounded-xl flex items-center justify-center shadow-inner group-hover:bg-[#FF5E1A] group-hover:border-[#FF5E1A] transition-colors duration-300">
+                  <div className="w-12 h-12 bg-alphyn-surface border border-alphyn-surfaceBorder rounded-xl flex items-center justify-center shadow-inner group-hover:bg-[#8B5CF6] group-hover:border-[#8B5CF6] transition-colors duration-300">
                     <item.icon className="text-alphyn-text group-hover:text-white w-6 h-6 transition-colors duration-300" />
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-[#FF5E1A]/10 text-[#FF5E1A] border border-[#FF5E1A]/20 uppercase tracking-widest">Step {item.step}</span>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20 uppercase tracking-widest">Step {item.step}</span>
                 </div>
                 <h3 className="font-bold text-xl mb-1">{item.title}</h3>
                 <p className="text-sm text-alphyn-textMuted font-medium">{item.desc}</p>
@@ -366,7 +366,7 @@ export default function Landing() {
                         </span>
                       </div>
                       <div className="col-span-5 md:col-span-3 text-right">
-                        <span className={`text-xl font-black font-mono ${pnlPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`text-xl font-black font-mono ${pnlPct >= 0 ? 'text-green-600' : 'text-red-400'}`}>
                           {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
                         </span>
                       </div>
@@ -382,12 +382,12 @@ export default function Landing() {
 
         {/* CTA */}
         <section className="px-6 lg:px-12 py-32 max-w-4xl mx-auto text-center space-y-8 relative">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-500/10 via-transparent to-transparent -z-10 blur-xl"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-500/10 via-transparent to-transparent -z-10 blur-xl"></div>
           <h2 className="text-5xl lg:text-6xl font-black tracking-tight">Ready to secure your alpha?</h2>
           <p className="text-xl text-alphyn-textMuted max-w-2xl mx-auto font-medium">Join the next generation of DeFi where strategy creation is intelligent and execution is absolutely private.</p>
           <button
             onClick={launchApp} disabled={connecting}
-            className="px-12 py-6 bg-[#FF5E1A] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-2xl shadow-orange-500/30 mt-8 disabled:opacity-60"
+            className="px-12 py-6 bg-[#8B5CF6] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#7C3AED] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#6D28D9] shadow-2xl shadow-purple-500/30 mt-8 disabled:opacity-60"
           >
             {connecting ? 'Connecting…' : connected ? 'Launch App' : 'Connect & Launch'} <ArrowRight className="w-6 h-6" />
           </button>

@@ -41,7 +41,7 @@ export default function Nav() {
             </span>
             <button
               onClick={disconnect}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-alphyn-textMuted border-l border-alphyn-surfaceBorder hover:bg-red-500/10 hover:text-red-600 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-alphyn-textMuted border-l border-alphyn-surfaceBorder hover:bg-red-500/10 hover:text-red-400 transition-colors"
               title="Disconnect wallet"
             >
               <LogOut className="w-3.5 h-3.5" /> Disconnect

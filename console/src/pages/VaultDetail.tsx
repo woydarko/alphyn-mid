@@ -118,7 +118,7 @@ export default function VaultDetail() {
         </div>
       </div>
 
-      {err && <div className="bg-red-500/10 border border-red-500/30 text-red-600 text-sm font-medium rounded-xl px-4 py-3">{err}</div>}
+      {err && <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium rounded-xl px-4 py-3">{err}</div>}
 
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -134,7 +134,7 @@ export default function VaultDetail() {
 
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Cumulative PnL</p>
-          <div className={`text-3xl font-black font-mono flex items-center gap-2 ${isPos ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`text-3xl font-black font-mono flex items-center gap-2 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
             {isPos ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
             {isPos ? '+' : ''}{pnlPct.toFixed(2)}%
           </div>
@@ -149,13 +149,13 @@ export default function VaultDetail() {
           {v.principal <= 0 ? (
             <>
               <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2">
-                Fund to start
+                Deposit
               </button>
-              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit tNIGHT to activate epochs.</p>
+              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit tNIGHT to run epochs.</p>
             </>
           ) : (
             v.managed ? (
-              <p className="mt-4 text-xs text-green-700 font-medium flex items-center gap-1.5">
+              <p className="mt-4 text-xs text-green-400 font-medium flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
               </p>
             ) : (
@@ -164,7 +164,7 @@ export default function VaultDetail() {
                   {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
                 </button>
                 <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
-                  <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#FF5E1A' }} />
+                  <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#8B5CF6' }} />
                   Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
                 </label>
               </>
@@ -175,7 +175,7 @@ export default function VaultDetail() {
         <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Strategy integrity</p>
           <span className="px-3 py-1.5 bg-background text-alphyn-text text-[10px] font-bold tracking-widest rounded-lg inline-flex items-center gap-1.5 border border-alphyn-surfaceBorder">
-            <ShieldCheck className="w-3.5 h-3.5 text-green-600" /> PROVEN IN ZK
+            <ShieldCheck className="w-3.5 h-3.5 text-green-400" /> PROVEN IN ZK
           </span>
           <p className="text-[10px] text-alphyn-textMuted mt-3">Each rebalance proves PnL followed your committed allocation, without revealing it.</p>
         </div>
@@ -186,16 +186,16 @@ export default function VaultDetail() {
         <div className="lg:col-span-2 bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-[2rem]">
           <h3 className="text-xl font-bold mb-6">Performance History <span className="text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">(cumulative %)</span></h3>
           {series.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">{v.principal <= 0 ? 'Fund the vault to start earning.' : 'The keeper will post the first epoch shortly.'}</div>
+            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">{v.principal <= 0 ? 'Deposit tNIGHT to start.' : 'Run an epoch to post the first PnL point.'}</div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EAE5DF" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2C2348" />
                   <XAxis dataKey="epoch" tick={{ fill: '#8A7D74', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#8A7D74', fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #EAE5DF', fontSize: 13 }} />
-                  <Line type="monotone" dataKey="pnl" stroke="#FF5E1A" strokeWidth={2.5} dot={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #2C2348', fontSize: 13 }} />
+                  <Line type="monotone" dataKey="pnl" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -222,11 +222,11 @@ export default function VaultDetail() {
       {showClose && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6" onClick={() => setShowClose(false)}>
           <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-8 max-w-md w-full space-y-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-black text-red-600">Close vault</h2>
-            <p className="text-sm text-alphyn-textMuted">This marks the vault inactive on-chain and cannot be undone. Type <span className="font-bold text-red-600">CONFIRM</span> to proceed.</p>
+            <h2 className="text-xl font-black text-red-400">Close vault</h2>
+            <p className="text-sm text-alphyn-textMuted">This marks the vault inactive on-chain and cannot be undone. Type <span className="font-bold text-red-400">CONFIRM</span> to proceed.</p>
             <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CONFIRM"
               className="w-full px-4 py-3 bg-background border border-alphyn-surfaceBorder rounded-xl font-mono focus:outline-none focus:border-red-500" />
-            {err && <p className="text-sm text-red-600 break-words">{err}</p>}
+            {err && <p className="text-sm text-red-400 break-words">{err}</p>}
             <div className="flex gap-3">
               <button onClick={() => setShowClose(false)} className="flex-1 py-3 border border-alphyn-surfaceBorder font-bold rounded-xl hover:bg-alphyn-surfaceHover">Cancel</button>
               <button onClick={onClose} disabled={confirmText !== 'CONFIRM' || closing} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:opacity-40 transition-all">

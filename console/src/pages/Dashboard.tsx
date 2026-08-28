@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Plus, BarChart3, Clock, Wallet, ArrowRight } from 'lucide-react';
 import { useDapp, type LocalVault } from '../dapp/DappContext';
-import { netPnlBps, maxDrawdownBps, CATEGORY_STYLES } from '../dapp/metrics';
+import { netPnlBps, CATEGORY_STYLES } from '../dapp/metrics';
 
 function VaultCard({ v, onClick }: { v: LocalVault; onClick: () => void }) {
   const pnl = netPnlBps(v) / 100;
@@ -20,16 +20,16 @@ function VaultCard({ v, onClick }: { v: LocalVault; onClick: () => void }) {
           </span>
           <h3 className="font-bold text-lg leading-tight group-hover:text-alphyn-orange transition-colors">{v.name}</h3>
         </div>
-        <div className={`text-xl font-black font-mono flex items-center gap-1 ${isPos ? 'text-green-600' : 'text-red-600'}`}>
+        <div className={`text-xl font-black font-mono flex items-center gap-1 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
           {isPos ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
           {isPos ? '+' : ''}{pnl.toFixed(2)}%
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[
+          ['Custody', `${v.principal.toLocaleString()}`],
           ['Epochs', String(v.epochs.length)],
           ['Assets', String(assets)],
-          ['Max DD', `${(maxDrawdownBps(v) / 100).toFixed(1)}%`],
         ].map(([l, val]) => (
           <div key={l} className="bg-alphyn-surfaceHover rounded-xl p-3 text-center">
             <p className="text-[10px] font-bold text-alphyn-textMuted uppercase tracking-wider mb-1">{l}</p>
@@ -66,7 +66,7 @@ export default function Dashboard() {
 
   const avgPnl = vaults.length ? vaults.reduce((s, v) => s + netPnlBps(v), 0) / vaults.length / 100 : 0;
   const bestPnl = vaults.length ? Math.max(...vaults.map((v) => netPnlBps(v))) / 100 : 0;
-  const totalEpochs = vaults.reduce((s, v) => s + v.epochs.length, 0);
+  const totalCustody = vaults.reduce((s, v) => s + (v.principal || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12 space-y-10">
@@ -87,9 +87,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Total Vaults" value={String(vaults.length)} sub="on-chain" icon={<Wallet className="w-5 h-5 text-alphyn-textMuted" />} />
-        <Stat label="Avg PnL" value={`${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%`} sub="across all vaults" icon={<BarChart3 className={`w-5 h-5 ${avgPnl >= 0 ? 'text-green-600' : 'text-red-600'}`} />} />
-        <Stat label="Best Vault" value={`${bestPnl >= 0 ? '+' : ''}${bestPnl.toFixed(2)}%`} sub="cumulative PnL" icon={<TrendingUp className={`w-5 h-5 ${bestPnl >= 0 ? 'text-green-600' : 'text-red-600'}`} />} />
-        <Stat label="Total Epochs" value={String(totalEpochs)} sub="executed" icon={<Clock className="w-5 h-5 text-alphyn-textMuted" />} />
+        <Stat label="Total Custody" value={`${totalCustody.toLocaleString()}`} sub="tNIGHT held on-chain" icon={<Clock className="w-5 h-5 text-alphyn-orange" />} />
+        <Stat label="Avg PnL" value={`${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%`} sub="across all vaults" icon={<BarChart3 className={`w-5 h-5 ${avgPnl >= 0 ? 'text-green-400' : 'text-red-400'}`} />} />
+        <Stat label="Best Vault" value={`${bestPnl >= 0 ? '+' : ''}${bestPnl.toFixed(2)}%`} sub="cumulative PnL" icon={<TrendingUp className={`w-5 h-5 ${bestPnl >= 0 ? 'text-green-400' : 'text-red-400'}`} />} />
       </div>
 
       {vaults.length === 0 ? (

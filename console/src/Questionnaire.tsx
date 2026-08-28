@@ -31,7 +31,7 @@ export default function Questionnaire({
   const [step, setStep] = useState(1);
   const [risk, setRisk] = useState<RiskKey | null>(null);
   const [horizon, setHorizon] = useState<Horizon | null>(null);
-  const [assets, setAssets] = useState<Asset[]>(['DJED', 'ADA']);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [targetApy, setTargetApy] = useState<ApyBand | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<Drawdown | null>(null);
   const [vaultName, setVaultName] = useState('');
@@ -239,7 +239,7 @@ export default function Questionnaire({
           <p className="q-sub">Name your vault. Notes for the strategy engine are optional.</p>
           <div style={{ marginBottom: 16 }}>
             <label className="field-label">Vault name <span style={{ color: 'var(--orange)' }}>*</span></label>
-            <input className="text-full" value={vaultName} maxLength={40} placeholder="e.g. ETH bullish Q3"
+            <input className="text-full" value={vaultName} maxLength={40} placeholder="e.g. NIGHT growth vault"
               onChange={(e) => setVaultName(e.target.value)} />
             <div className="counter">{vaultName.trim() ? `${vaultName.length}/40` : 'Required'}</div>
           </div>

@@ -17,24 +17,38 @@ export interface Oracle {
 
 const clamp = (n: number) => Math.max(0, Math.min(MAX_BPS, Math.round(n)));
 
-/** Fetch 24h returns from CoinGecko and turn them into per-asset up/down bps. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Fetch 24h returns from CoinGecko and turn them into per-asset up/down bps.
+ * Retries a couple of times (CoinGecko's free tier rate-limits with 429), and
+ * throws a clear error if the oracle is truly unavailable — so a flat epoch is
+ * never silently recorded as "PnL didn't move".
+ */
 export async function fetchOracle(): Promise<Oracle> {
-  const flat: Oracle = { up: [0, 0, 0, 0], down: [0, 0, 0, 0] };
-  try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${IDS.join(',')}&vs_currencies=usd&include_24hr_change=true`;
-    const res = await fetch(url);
-    if (!res.ok) return flat;
-    const data = (await res.json()) as Record<string, { usd_24h_change?: number }>;
-    const up = [0, 0, 0, 0];
-    const down = [0, 0, 0, 0];
-    IDS.forEach((id, i) => {
-      const changePct = data[id]?.usd_24h_change ?? 0;
-      const bps = changePct * 100; // 1% -> 100 bps
-      if (bps >= 0) up[i] = clamp(bps);
-      else down[i] = clamp(-bps);
-    });
-    return { up, down };
-  } catch {
-    return flat; // no data -> flat epoch, never fabricate
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${IDS.join(',')}&vs_currencies=usd&include_24hr_change=true`;
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(800 * attempt);
+    try {
+      const res = await fetch(url, { headers: { accept: 'application/json' } });
+      if (!res.ok) { lastErr = `CoinGecko HTTP ${res.status}`; continue; }
+      const data = (await res.json()) as Record<string, { usd_24h_change?: number }>;
+      const up = [0, 0, 0, 0];
+      const down = [0, 0, 0, 0];
+      let sawAny = false;
+      IDS.forEach((id, i) => {
+        const changePct = data[id]?.usd_24h_change;
+        if (typeof changePct === 'number') sawAny = true;
+        const bps = (changePct ?? 0) * 100; // 1% -> 100 bps
+        if (bps >= 0) up[i] = clamp(bps);
+        else down[i] = clamp(-bps);
+      });
+      if (!sawAny) { lastErr = 'CoinGecko returned no 24h change data'; continue; }
+      return { up, down };
+    } catch (e: any) {
+      lastErr = e?.message ?? String(e);
+    }
   }
+  throw new Error(`Price oracle unavailable (${lastErr}). CoinGecko may be rate-limiting — try again in a moment.`);
 }
