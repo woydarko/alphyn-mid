@@ -26,6 +26,8 @@ export default function Deposit() {
   useEffect(() => { refreshBalances(); }, [refreshBalances]);
 
   const available = mode === 'deposit' ? walletBal : custody;
+  const amtStar = nightToStar(amt);
+  const overAvailable = available != null && amtStar > available;
   const setMax = () => { if (available != null) setAmt(String(starToNight(available))); };
 
   if (!v) return <div className="max-w-2xl mx-auto px-6 py-24 text-center text-alphyn-textMuted">Vault not found.</div>;
@@ -115,11 +117,16 @@ export default function Deposit() {
           </div>
         </div>
 
+        {overAvailable && (
+          <p className="text-xs font-medium text-red-400">
+            Amount exceeds your {mode === 'deposit' ? 'wallet balance' : 'vault custody'} ({available === null ? '…' : fmtNight(available)} tNIGHT).
+          </p>
+        )}
         {msg && <p className="text-xs font-mono break-words text-alphyn-textMuted">{msg}</p>}
 
         <button
           onClick={submit}
-          disabled={busy || !amt}
+          disabled={busy || !amt || amtStar <= 0n || overAvailable}
           className="w-full py-3.5 bg-alphyn-orange text-white font-bold rounded-2xl hover:bg-alphyn-orangeDeep disabled:opacity-40 transition-all capitalize"
         >
           {busy ? 'Submitting…' : `${mode} tNIGHT`}

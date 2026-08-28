@@ -172,6 +172,19 @@ const explainTxError = (e: any): Error => {
   return e instanceof Error ? e : new Error(m);
 };
 
+// A tx can land on-chain but its contract segment can still revert
+// (status FailFallible/FailEntirely) — e.g. the wallet couldn't fund a
+// receiveUnshielded because the amount exceeds spendable tNIGHT. Surface that as
+// a real error instead of a false success.
+function assertTxSucceeded(res: any, label: string): void {
+  const status = res?.status;
+  if (status && status !== 'SucceedEntirely') {
+    throw new Error(
+      `${label} failed on-chain (${status}). The tokens were not moved — most likely the amount exceeds your spendable tNIGHT (some may be reserved for fees/dust). Try a smaller amount.`,
+    );
+  }
+}
+
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
 const sha256hex = async (s: string) => {
@@ -601,7 +614,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
         if (v.managed) throw new Error('Managed (bridge) vaults deposit through the bridge, not the wallet.');
         const contract = await joinFor(v);
-        await cvDeposit(contract, amount);
+        const res: any = await cvDeposit(contract, amount);
+        assertTxSucceeded(res, 'Deposit');
         // principal mirrors real custody (Σ deposits − withdrawals).
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: x.principal + Number(amount) } : x)));
         refreshLeaderboard();
@@ -650,7 +664,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
           MidnightBech32m.parse(addrRef.current).decode(UnshieldedAddress, NETWORK_ID).data,
         );
         const contract = await joinFor(v);
-        await cvWithdraw(contract, amount, addrBytes);
+        const res: any = await cvWithdraw(contract, amount, addrBytes);
+        assertTxSucceeded(res, 'Withdraw');
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: Math.max(0, x.principal - Number(amount)) } : x)));
         refreshLeaderboard();
       } catch (e) {
