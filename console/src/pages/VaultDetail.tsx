@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ArrowUpRight, ArrowDownRight, MoreVertical, History, Settings as SettingsIcon,
-  TrendingUp, TrendingDown, Clock, ShieldCheck, Lock, Play, Loader2, Eye,
+  TrendingUp, TrendingDown, Clock, ShieldCheck, Lock, Loader2, Eye,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { useDapp } from '../dapp/DappContext';
@@ -26,42 +26,14 @@ function ChartTooltip({ active, payload, label }: any) {
 export default function VaultDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { vaultById, runEpoch, closeVault, vaultCustody } = useDapp();
+  const { vaultById, closeVault, vaultCustody } = useDapp();
   const [chainCustody, setChainCustody] = useState<bigint | null>(null);
   const v = vaultById(id!);
   const [showMenu, setShowMenu] = useState(false);
   const [showClose, setShowClose] = useState(false);
   const [confirmText, setConfirmText] = useState('');
-  const [running, setRunning] = useState(false);
-  const [auto, setAuto] = useState(false);
   const [closing, setClosing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const runningRef = useRef(false);
-
-  // Auto-run: fire one epoch per strategy epoch-duration while the page is open.
-  // The keeper cannot do this server-side without holding the private allocation,
-  // so the epoch loop lives with the only party who has the witness: this client.
-  useEffect(() => {
-    if (!auto || !v || v.principal <= 0) return;
-    const ms = Math.max(60, v.epochDurationSeconds) * 1000;
-    const t = setInterval(async () => {
-      if (runningRef.current) return;
-      runningRef.current = true;
-      setRunning(true);
-      try {
-        await runEpoch(v.vaultId);
-        setErr(null);
-      } catch (e: any) {
-        setErr(e?.message ?? String(e));
-        setAuto(false); // stop the loop instead of hammering a failing node
-      } finally {
-        runningRef.current = false;
-        setRunning(false);
-      }
-    }, ms);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, v?.vaultId, v?.epochDurationSeconds]);
 
   // Read the vault's real custody from chain, so the per-asset breakdown shows
   // provable tNIGHT amounts (custody x weight), not just percentages.
@@ -84,10 +56,6 @@ export default function VaultDetail() {
   const isPos = pnlPct >= 0;
   const series = pnlSeries(v).map((p) => ({ epoch: `#${p.n}`, pnl: p.cumBps / 100 }));
 
-  const onRun = async () => {
-    setRunning(true); setErr(null);
-    try { await runEpoch(v.vaultId); } catch (e: any) { setErr(e?.message ?? String(e)); } finally { setRunning(false); }
-  };
   const onClose = async () => {
     setClosing(true); setErr(null);
     try { await closeVault(v.vaultId); nav('/dashboard'); } catch (e: any) { setErr(e?.message ?? String(e)); setClosing(false); setShowClose(false); }
@@ -144,7 +112,7 @@ export default function VaultDetail() {
 
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Custody NAV</p>
           <div className="text-3xl font-black font-mono">{fmtNight(navTNight(v))} <span className="text-lg">tNIGHT</span></div>
           <div className="mt-4 px-2.5 py-1 bg-alphyn-orange/10 border border-alphyn-orange/20 rounded-lg inline-flex items-center gap-1.5">
@@ -154,7 +122,7 @@ export default function VaultDetail() {
           <p className="text-[10px] text-alphyn-textMuted mt-2">Custody {fmtNight(v.principal)} tNIGHT · held on-chain.</p>
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Cumulative PnL</p>
           <div className={`text-3xl font-black font-mono flex items-center gap-2 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
             {isPos ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
@@ -165,36 +133,31 @@ export default function VaultDetail() {
           </div>
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Epochs run</p>
           <div className="text-3xl font-black font-mono flex items-center gap-2"><Clock className="w-6 h-6 text-alphyn-orange" />{v.epochs.length}</div>
           {v.principal <= 0 ? (
             <>
-              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2">
+              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
                 Deposit
               </button>
-              <p className="mt-3 text-xs text-alphyn-textMuted">Deposit tNIGHT to run epochs.</p>
+              <p className="mt-3 text-xs text-alphyn-textMuted">Depositing tNIGHT runs an epoch in the same transaction.</p>
             </>
+          ) : v.managed ? (
+            <p className="mt-4 text-xs text-green-400 font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
+            </p>
           ) : (
-            v.managed ? (
-              <p className="mt-4 text-xs text-green-400 font-medium flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
-              </p>
-            ) : (
-              <>
-                <button onClick={onRun} disabled={running} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep transition-all flex items-center justify-center gap-2 disabled:opacity-60">
-                  {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'Proving…' : 'Run epoch'}
-                </button>
-                <label className="mt-3 flex items-center gap-2 text-xs text-alphyn-textMuted font-medium cursor-pointer select-none">
-                  <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: '#8B5CF6' }} />
-                  Auto-run every {v.epochDurationSeconds >= 3600 ? `${Math.round(v.epochDurationSeconds / 3600)}h` : `${Math.max(1, Math.round(v.epochDurationSeconds / 60))}m`} while this page is open
-                </label>
-              </>
-            )
+            <>
+              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+                <ArrowUpRight className="w-4 h-4" /> Deposit &amp; run epoch
+              </button>
+              <p className="mt-3 text-xs text-alphyn-textMuted">Each deposit advances one epoch — no separate signature.</p>
+            </>
           )}
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-3xl">
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
           <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Strategy integrity</p>
           <span className="px-3 py-1.5 bg-background text-alphyn-text text-[10px] font-bold tracking-widest rounded-lg inline-flex items-center gap-1.5 border border-alphyn-surfaceBorder">
             <ShieldCheck className="w-3.5 h-3.5 text-green-400" /> PROVEN IN ZK
@@ -205,7 +168,7 @@ export default function VaultDetail() {
 
       {/* Chart + Allocation */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-[2rem]">
+        <div className="lg:col-span-2 bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-2xl">
           <h3 className="text-xl font-bold mb-6">Performance History <span className="text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">(cumulative %)</span></h3>
           {series.length === 0 ? (
             <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">{v.principal <= 0 ? 'Deposit tNIGHT to start.' : 'Run an epoch to post the first PnL point.'}</div>
@@ -265,7 +228,7 @@ export default function VaultDetail() {
 
       {showClose && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6" onClick={() => setShowClose(false)}>
-          <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-3xl p-8 max-w-md w-full space-y-5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-2xl p-8 max-w-md w-full space-y-5" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-black text-red-400">Close vault</h2>
             <p className="text-sm text-alphyn-textMuted">This marks the vault inactive on-chain and cannot be undone. Type <span className="font-bold text-red-400">CONFIRM</span> to proceed.</p>
             <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CONFIRM"
