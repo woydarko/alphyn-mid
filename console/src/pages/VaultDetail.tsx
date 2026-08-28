@@ -112,57 +112,41 @@ export default function VaultDetail() {
 
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
-          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Custody NAV</p>
-          <div className="text-3xl font-black font-mono">{fmtNight(navTNight(v))} <span className="text-lg">tNIGHT</span></div>
-          <div className="mt-4 px-2.5 py-1 bg-alphyn-orange/10 border border-alphyn-orange/20 rounded-lg inline-flex items-center gap-1.5">
-            <ShieldCheck className="w-3 h-3 text-alphyn-orange" />
-            <span className="text-[10px] font-bold text-alphyn-orange uppercase tracking-widest">Real custody</span>
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-5 rounded-2xl flex flex-col min-h-[140px]">
+          <p className="text-[11px] font-bold text-alphyn-textMuted uppercase tracking-widest mb-3">Custody NAV</p>
+          <div className="text-3xl font-black font-mono leading-none">
+            {fmtNight(navTNight(v))} <span className="text-base text-alphyn-textMuted">tNIGHT</span>
           </div>
-          <p className="text-[10px] text-alphyn-textMuted mt-2">Custody {fmtNight(v.principal)} tNIGHT · held on-chain.</p>
+          <p className="text-[11px] text-alphyn-textMuted mt-auto pt-4">Real custody · held on-chain</p>
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
-          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Cumulative PnL</p>
-          <div className={`text-3xl font-black font-mono flex items-center gap-2 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-5 rounded-2xl flex flex-col min-h-[140px]">
+          <p className="text-[11px] font-bold text-alphyn-textMuted uppercase tracking-widest mb-3">Cumulative PnL</p>
+          <div className={`text-3xl font-black font-mono leading-none flex items-center gap-2 ${isPos ? 'text-green-400' : 'text-red-400'}`}>
             {isPos ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
             {isPos ? '+' : ''}{pnlPct.toFixed(2)}%
           </div>
-          <div className="mt-5 text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">
+          <p className="text-[11px] text-alphyn-textMuted mt-auto pt-4">
             {pnlTNight(v) >= 0 ? '+' : ''}{fmtNight(pnlTNight(v))} tNIGHT since inception
+          </p>
+        </div>
+
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-5 rounded-2xl flex flex-col min-h-[140px]">
+          <p className="text-[11px] font-bold text-alphyn-textMuted uppercase tracking-widest mb-3">Epochs run</p>
+          <div className="text-3xl font-black font-mono leading-none flex items-center gap-2">
+            <Clock className="w-6 h-6 text-alphyn-orange" />{v.epochs.length}
           </div>
+          <p className="text-[11px] text-alphyn-textMuted mt-auto pt-4">
+            {v.managed ? 'Keeper runs epochs automatically' : 'Advances one per deposit'}
+          </p>
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
-          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Epochs run</p>
-          <div className="text-3xl font-black font-mono flex items-center gap-2"><Clock className="w-6 h-6 text-alphyn-orange" />{v.epochs.length}</div>
-          {v.principal <= 0 ? (
-            <>
-              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
-                Deposit
-              </button>
-              <p className="mt-3 text-xs text-alphyn-textMuted">Depositing tNIGHT runs an epoch in the same transaction.</p>
-            </>
-          ) : v.managed ? (
-            <p className="mt-4 text-xs text-green-400 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Keeper is running epochs automatically
-            </p>
-          ) : (
-            <>
-              <button onClick={() => nav(`/vault/${v.vaultId}/deposit`)} className="mt-4 w-full py-2.5 bg-alphyn-orange text-white font-bold rounded-xl hover:bg-alphyn-orangeDeep hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
-                <ArrowUpRight className="w-4 h-4" /> Deposit &amp; run epoch
-              </button>
-              <p className="mt-3 text-xs text-alphyn-textMuted">Each deposit advances one epoch — no separate signature.</p>
-            </>
-          )}
-        </div>
-
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-6 rounded-2xl">
-          <p className="text-alphyn-textMuted text-sm font-semibold mb-1">Strategy integrity</p>
-          <span className="px-3 py-1.5 bg-background text-alphyn-text text-[10px] font-bold tracking-widest rounded-lg inline-flex items-center gap-1.5 border border-alphyn-surfaceBorder">
-            <ShieldCheck className="w-3.5 h-3.5 text-green-400" /> PROVEN IN ZK
-          </span>
-          <p className="text-[10px] text-alphyn-textMuted mt-3">Each rebalance proves PnL followed your committed allocation, without revealing it.</p>
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-5 rounded-2xl flex flex-col min-h-[140px]">
+          <p className="text-[11px] font-bold text-alphyn-textMuted uppercase tracking-widest mb-3">Strategy integrity</p>
+          <div className="text-2xl font-black leading-none flex items-center gap-2 text-green-400">
+            <ShieldCheck className="w-6 h-6" /> Proven
+          </div>
+          <p className="text-[11px] text-alphyn-textMuted mt-auto pt-4">Every rebalance ZK-proven, weights hidden</p>
         </div>
       </div>
 
@@ -171,7 +155,7 @@ export default function VaultDetail() {
         <div className="lg:col-span-2 bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-2xl">
           <h3 className="text-xl font-bold mb-6">Performance History <span className="text-[10px] font-bold text-alphyn-textMuted uppercase tracking-widest">(cumulative %)</span></h3>
           {series.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">{v.principal <= 0 ? 'Deposit tNIGHT to start.' : 'Run an epoch to post the first PnL point.'}</div>
+            <div className="h-64 flex items-center justify-center text-alphyn-textMuted text-sm">Deposit tNIGHT — each deposit posts a PnL point.</div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
