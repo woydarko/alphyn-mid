@@ -186,10 +186,10 @@ export default function VaultDetail() {
               <ShieldCheck className="w-3 h-3" /> On-chain
             </span>
           </div>
-          <p className="text-[11px] text-alphyn-textMuted mb-6">
-            Weights are private (only a commitment is on-chain); the{' '}
+          <p className="text-[11px] text-alphyn-textMuted mb-6 leading-relaxed">
             <span className="font-mono text-alphyn-text">{chainCustody === null ? '…' : fmtNight(chainCustody)}</span> tNIGHT
-            custody total is proven on the ledger.
+            custody is real and proven on-chain. The per-asset split is your <b>target allocation</b> (weights private) —
+            the vault holds tNIGHT and prices it against the basket; on-chain swaps into DJED/ADA/SNEK are not live yet.
           </p>
           <div className="space-y-4">
             {ASSETS.map((a, i) => {
@@ -200,8 +200,9 @@ export default function VaultDetail() {
                   <span className="flex-1 h-2.5 bg-alphyn-surfaceHover rounded-full overflow-hidden">
                     <span className="block h-full bg-gradient-to-r from-alphyn-orange to-[#A78BFA] rounded-full transition-all duration-500" style={{ width: `${v.allocation[i]}%` }} />
                   </span>
-                  <span className="font-mono text-xs w-24 text-right text-alphyn-textMuted">
-                    {amt === null ? '' : `${fmtNight(amt)} `}<span className="text-alphyn-text font-semibold">{v.allocation[i]}%</span>
+                  <span className="font-mono text-xs w-28 text-right">
+                    <span className="text-alphyn-text font-bold">{v.allocation[i]}%</span>
+                    {amt !== null && <span className="text-alphyn-textMuted"> · {fmtNight(amt)} tN</span>}
                   </span>
                 </div>
               );
