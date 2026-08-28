@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Float, MeshDistortMaterial, Icosahedron, Environment } from '@react-three/drei';
+import { Float, MeshDistortMaterial, Icosahedron } from '@react-three/drei';
 import * as THREE from 'three';
 
 // A floating cluster of privacy "crystals" — the Midnight aesthetic — that gently
@@ -15,9 +15,9 @@ function Crystal({ position, scale, color, speed, distort }: {
         <MeshDistortMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.35}
-          roughness={0.15}
-          metalness={0.6}
+          emissiveIntensity={0.55}
+          roughness={0.3}
+          metalness={0.2}
           distort={distort}
           speed={1.5}
           transparent
@@ -72,7 +72,6 @@ function Scene() {
       <Crystal position={[-2.3, -0.9, -0.5]} scale={0.85} color="#6D28D9" speed={1.7} distort={0.4} />
       <Crystal position={[1.4, -1.6, 0.5]} scale={0.5} color="#C4B5FD" speed={2.4} distort={0.5} />
       <Particles />
-      <Environment preset="night" />
     </group>
   );
 }
