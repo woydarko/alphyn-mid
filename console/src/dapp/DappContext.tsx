@@ -189,6 +189,10 @@ function assertTxSucceeded(res: any, label: string): void {
 const isCircuitMismatch = (e: any) =>
   /verifier key|mismatched|are undefined|operations:/i.test(String(e?.message ?? e));
 
+// Pull a tx hash out of the various shapes callTx/deploy results can take.
+const txHashOf = (res: any): string | null =>
+  res?.txHash ?? res?.txId ?? res?.public?.txHash ?? res?.identifiers?.[0] ?? null;
+
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
 const sha256hex = async (s: string) => {
@@ -585,17 +589,21 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         }
         const { up, down } = await fetchOracle();
         const contract = await joinFor(v);
-        await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        const res: any = await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        assertTxSucceeded(res, 'Epoch');
         const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
         const pnlBps = Math.round(num / 100);
         const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
         await persist(vaults.map((x) => (x.vaultId === vaultId ? updated : x)));
         refreshLeaderboard();
+        notify({ kind: 'success', title: 'Epoch run', body: `${v.name} · ${pnlBps >= 0 ? '+' : ''}${(pnlBps / 100).toFixed(2)}%`, txId: txHashOf(res) });
       } catch (e) {
-        throw explainTxError(e);
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Epoch failed', body: err.message });
+        throw err;
       }
     },
-    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults, notify],
   );
 
   const setPrincipal = useCallback(
@@ -626,14 +634,15 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
         const contract = await joinFor(v);
         let ranEpoch = true;
+        let res: any;
         try {
-          const res: any = await cvDepositAndRebalance(contract, amount, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+          res = await cvDepositAndRebalance(contract, amount, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
           assertTxSucceeded(res, 'Deposit');
         } catch (err) {
           if (!isCircuitMismatch(err)) throw err;
           // Vault predates depositAndRebalance — plain deposit, no epoch this time.
-          const res2: any = await cvDeposit(contract, amount);
-          assertTxSucceeded(res2, 'Deposit');
+          res = await cvDeposit(contract, amount);
+          assertTxSucceeded(res, 'Deposit');
           ranEpoch = false;
         }
 
@@ -650,11 +659,14 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
             : x,
         ));
         refreshLeaderboard();
+        notify({ kind: 'success', title: ranEpoch ? 'Deposited + epoch run' : 'Deposited', body: v.name, txId: txHashOf(res) });
       } catch (e) {
-        throw explainTxError(e);
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Deposit failed', body: err.message });
+        throw err;
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, notify],
   );
 
   // The connected wallet's unshielded tNIGHT balance (base units). On Preprod the
@@ -699,11 +711,14 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         assertTxSucceeded(res, 'Withdraw');
         await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: Math.max(0, x.principal - Number(amount)) } : x)));
         refreshLeaderboard();
+        notify({ kind: 'success', title: 'Withdrawn', body: v.name, txId: txHashOf(res) });
       } catch (e) {
-        throw explainTxError(e);
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Withdraw failed', body: err.message });
+        throw err;
       }
     },
-    [vaults, providers, persist, refreshLeaderboard],
+    [vaults, providers, persist, refreshLeaderboard, notify],
   );
 
   const renameVault = useCallback(

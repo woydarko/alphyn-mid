@@ -4,17 +4,30 @@ import {
   ArrowLeft, ArrowUpRight, ArrowDownRight, MoreVertical, History, Settings as SettingsIcon,
   TrendingUp, TrendingDown, Clock, ShieldCheck, Lock, Play, Loader2, Eye,
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { useDapp } from '../dapp/DappContext';
 import { netPnlBps, navTNight, pnlTNight, pnlSeries, CATEGORY_STYLES } from '../dapp/metrics';
 import { fmtNight } from '../dapp/night';
 
 const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'];
 
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const val = payload[0].value as number;
+  const pos = val >= 0;
+  return (
+    <div className="bg-alphyn-surface border border-alphyn-surfaceBorder rounded-xl px-3 py-2 shadow-2xl">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-alphyn-textMuted">{label}</div>
+      <div className={`font-mono font-bold text-sm ${pos ? 'text-green-400' : 'text-red-400'}`}>{pos ? '+' : ''}{val.toFixed(2)}%</div>
+    </div>
+  );
+}
+
 export default function VaultDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { vaultById, runEpoch, closeVault } = useDapp();
+  const { vaultById, runEpoch, closeVault, vaultCustody } = useDapp();
+  const [chainCustody, setChainCustody] = useState<bigint | null>(null);
   const v = vaultById(id!);
   const [showMenu, setShowMenu] = useState(false);
   const [showClose, setShowClose] = useState(false);
@@ -49,6 +62,14 @@ export default function VaultDetail() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, v?.vaultId, v?.epochDurationSeconds]);
+
+  // Read the vault's real custody from chain, so the per-asset breakdown shows
+  // provable tNIGHT amounts (custody x weight), not just percentages.
+  useEffect(() => {
+    if (!v) return;
+    vaultCustody(v.vaultId).then(setChainCustody).catch(() => setChainCustody(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v?.vaultId, v?.epochs.length]);
 
   if (!v) {
     return (
@@ -191,31 +212,53 @@ export default function VaultDetail() {
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={series} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2C2348" />
-                  <XAxis dataKey="epoch" tick={{ fill: '#8A7D74', fontSize: 12 }} />
-                  <YAxis tick={{ fill: '#8A7D74', fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #2C2348', fontSize: 13 }} />
-                  <Line type="monotone" dataKey="pnl" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
-                </LineChart>
+                <AreaChart data={series} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="pnlFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="#2C2348" strokeDasharray="4 4" />
+                  <XAxis dataKey="epoch" tick={{ fill: '#9D92BC', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#9D92BC', fontSize: 11 }} axisLine={false} tickLine={false} width={44} tickFormatter={(x) => `${x}%`} />
+                  <ReferenceLine y={0} stroke="#3A2E5C" strokeWidth={1} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#8B5CF6', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                  <Area type="monotone" dataKey="pnl" stroke="#8B5CF6" strokeWidth={2} fill="url(#pnlFill)"
+                    dot={false} activeDot={{ r: 5, fill: '#8B5CF6', stroke: '#0E0A1A', strokeWidth: 2 }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
 
-        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-[2rem]">
-          <h3 className="text-xl font-bold mb-2">Allocation</h3>
-          <p className="text-[11px] text-alphyn-textMuted mb-6">Private to you. Only a commitment is on-chain.</p>
+        <div className="bg-alphyn-surface border border-alphyn-surfaceBorder p-8 rounded-2xl">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xl font-bold">Allocation</h3>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/25 rounded-lg px-2 py-1 uppercase tracking-widest">
+              <ShieldCheck className="w-3 h-3" /> On-chain
+            </span>
+          </div>
+          <p className="text-[11px] text-alphyn-textMuted mb-6">
+            Weights are private (only a commitment is on-chain); the{' '}
+            <span className="font-mono text-alphyn-text">{chainCustody === null ? '…' : fmtNight(chainCustody)}</span> tNIGHT
+            custody total is proven on the ledger.
+          </p>
           <div className="space-y-4">
-            {ASSETS.map((a, i) => (
-              <div key={a} className="flex items-center gap-3">
-                <span className="font-mono text-sm w-12 font-semibold">{a}</span>
-                <span className="flex-1 h-2.5 bg-alphyn-surfaceHover rounded-full overflow-hidden">
-                  <span className="block h-full bg-alphyn-orange rounded-full" style={{ width: `${v.allocation[i]}%` }} />
-                </span>
-                <span className="font-mono text-sm w-10 text-right">{v.allocation[i]}%</span>
-              </div>
-            ))}
+            {ASSETS.map((a, i) => {
+              const amt = chainCustody === null ? null : (chainCustody * BigInt(v.allocation[i])) / 100n;
+              return (
+                <div key={a} className="flex items-center gap-3">
+                  <span className="font-mono text-sm w-12 font-semibold">{a}</span>
+                  <span className="flex-1 h-2.5 bg-alphyn-surfaceHover rounded-full overflow-hidden">
+                    <span className="block h-full bg-gradient-to-r from-alphyn-orange to-[#A78BFA] rounded-full transition-all duration-500" style={{ width: `${v.allocation[i]}%` }} />
+                  </span>
+                  <span className="font-mono text-xs w-24 text-right text-alphyn-textMuted">
+                    {amt === null ? '' : `${fmtNight(amt)} `}<span className="text-alphyn-text font-semibold">{v.allocation[i]}%</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
