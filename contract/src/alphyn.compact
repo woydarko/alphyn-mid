@@ -16,7 +16,7 @@ import CompactStandardLibrary;
 //   • Nobody — not other users, not an indexer, not the keeper — can read the
 //     allocation or the exact balance.
 //
-// ASSET INDICES (fixed, 4-wide vectors): 0=USDC 1=ETH 2=BTC 3=ARB
+// ASSET INDICES (fixed, 4-wide vectors): 0=DJED 1=ADA 2=NIGHT 3=SNEK
 //
 // NO SIGNED INTS in Compact → PnL is split into two monotonic unsigned
 // accumulators (gainScaled / lossScaled). Net PnL = gain − loss, computed
@@ -47,6 +47,9 @@ export ledger vaultCount: Counter;
 // follower vaultId → target vaultId. The relationship is public; the follower's
 // own allocation % stays private (never disclosed).
 export ledger follows: Map<Bytes<32>, Bytes<32>>;
+// vaultId → real native-token (tNIGHT) balance the contract custodies for it.
+// Path A phase 1: deposits/withdrawals move REAL native tNIGHT in/out of custody.
+export ledger custody: Map<Bytes<32>, Uint<128>>;
 
 // ─── Private witnesses (implemented in TypeScript, never on-chain) ────────────
 witness localSecretKey(): Bytes<32>;            // the user's vault secret
@@ -147,6 +150,98 @@ export circuit rebalance(
     w2 * (downBps[2] as Uint<64>) + w3 * (downBps[3] as Uint<64>);
 
   // gainAdd / lossAdd are derived from private weights → disclose the aggregates.
+  vaults.insert(id, VaultStats {
+    allocCommitment: v.allocCommitment,
+    category:        v.category,
+    assetCount:      v.assetCount,
+    epochCount:      (v.epochCount + 1) as Uint<32>,
+    gainScaled:      (v.gainScaled + disclose(gainAdd)) as Uint<64>,
+    lossScaled:      (v.lossScaled + disclose(lossAdd)) as Uint<64>,
+    followers:       v.followers,
+    active:          v.active,
+  });
+}
+
+// ─── Real custody (Path A, phase 1) ──────────────────────────────────────────
+
+// Deposit real native token (tNIGHT) into the caller's vault. The wallet includes
+// a matching coin to the contract in the transaction; `receiveUnshielded` binds
+// that transfer, and we credit the vault's custody balance. Amount is public value
+// entering the contract, so it is disclosed.
+export circuit deposit(amount: Uint<128>): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+
+  receiveUnshielded(nativeToken(), amt);
+
+  if (custody.member(id)) {
+    const cur = custody.lookup(id);
+    custody.insert(id, (cur + amt) as Uint<128>);
+  } else {
+    custody.insert(id, amt);
+  }
+}
+
+// Withdraw real native token back out. The owner proves control via the secret,
+// the contract pays `amount` of native token to `recipient`, and the custody
+// balance is debited. `recipient` is built by the caller (a UserAddress).
+export circuit withdraw(amount: Uint<128>, recipient: Either<ContractAddress, UserAddress>): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(custody.member(id), "no custody for vault");
+
+  const cur = custody.lookup(id);
+  assert(cur >= amt, "insufficient custody");
+
+  custody.insert(id, (cur - amt) as Uint<128>);
+  sendUnshielded(nativeToken(), amt, disclose(recipient));
+}
+
+// Deposit AND run one epoch in a single transaction (one signature). Credits the
+// custody balance with real tNIGHT, then — using the same committed allocation —
+// records this epoch's PnL from the public oracle returns. Combines `deposit` and
+// `rebalance` so funding a vault also advances it, with no separate epoch tx.
+export circuit depositAndRebalance(
+  amount:  Uint<128>,
+  upBps:   Vector<4, Uint<32>>,
+  downBps: Vector<4, Uint<32>>
+): [] {
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be positive");
+
+  const id = disclose(deriveVaultId(localSecretKey()));
+  assert(vaults.member(id), "vault not found");
+
+  const v = vaults.lookup(id);
+  assert(v.active, "vault inactive");
+
+  // Re-prove the committed allocation (same guarantee as `rebalance`).
+  const alloc = allocation();
+  const recomputed = commitAllocation(alloc, allocationNonce());
+  assert(recomputed == v.allocCommitment, "allocation does not match commitment");
+
+  // ── deposit: pull real tNIGHT into custody ──
+  receiveUnshielded(nativeToken(), amt);
+  const newCustody = (custody.member(id) ? custody.lookup(id) + amt : amt) as Uint<128>;
+  custody.insert(id, newCustody);
+
+  // ── epoch: weighted unsigned PnL from the public oracle (4-wide, unrolled) ──
+  const w0 = alloc[0] as Uint<64>;
+  const w1 = alloc[1] as Uint<64>;
+  const w2 = alloc[2] as Uint<64>;
+  const w3 = alloc[3] as Uint<64>;
+  const gainAdd =
+    w0 * (upBps[0] as Uint<64>) + w1 * (upBps[1] as Uint<64>) +
+    w2 * (upBps[2] as Uint<64>) + w3 * (upBps[3] as Uint<64>);
+  const lossAdd =
+    w0 * (downBps[0] as Uint<64>) + w1 * (downBps[1] as Uint<64>) +
+    w2 * (downBps[2] as Uint<64>) + w3 * (downBps[3] as Uint<64>);
+
   vaults.insert(id, VaultStats {
     allocCommitment: v.allocCommitment,
     category:        v.category,

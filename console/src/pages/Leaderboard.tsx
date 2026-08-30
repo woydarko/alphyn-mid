@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Users, ArrowRight, Loader2, X } from 'lucide-react';
 import { useDapp } from '../dapp/DappContext';
-import { CATEGORY_STYLES } from '../dapp/notional';
+import { CATEGORY_STYLES } from '../dapp/metrics';
 import type { LeaderboardRow } from '../alphyn-api';
 
 const CAT = ['conservative', 'balanced', 'aggressive'];
@@ -127,7 +127,7 @@ export default function Leaderboard() {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm"><span className="text-alphyn-textMuted">Allocation to mirror</span><span className="font-mono font-bold text-alphyn-orange">{pct}%</span></div>
-              <input type="range" min={1} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} className="w-full" style={{ accentColor: '#FF5E1A' }} />
+              <input type="range" min={1} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} className="w-full" style={{ accentColor: '#8B5CF6' }} />
             </div>
             {err && <p className="text-sm text-red-600 break-words">{err}</p>}
             <button onClick={doFollow} disabled={busy} className="w-full py-3.5 bg-alphyn-orange text-white font-bold rounded-2xl hover:bg-alphyn-orangeDeep disabled:opacity-60 transition-all flex items-center justify-center gap-2">

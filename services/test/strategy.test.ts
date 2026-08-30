@@ -9,9 +9,9 @@ import {
 
 describe('strategy generation', () => {
   it('normalizes weights to integers summing to 100 and zeroes disallowed assets', () => {
-    const a = normalizeAllocation({ USDC: 10, ETH: 20, BTC: 5, ARB: 5 }, ['USDC', 'ETH']);
-    expect(a[2]).toBe(0); // BTC disallowed
-    expect(a[3]).toBe(0); // ARB disallowed
+    const a = normalizeAllocation({ DJED: 10, ADA: 20, NIGHT: 5, SNEK: 5 }, ['DJED', 'ADA']);
+    expect(a[2]).toBe(0); // NIGHT disallowed
+    expect(a[3]).toBe(0); // SNEK disallowed
     expect(a.reduce((s, v) => s + v, 0)).toBe(100);
   });
 
@@ -19,7 +19,7 @@ describe('strategy generation', () => {
     const q: Questionnaire = {
       riskLevel: 4,
       horizon: 'mid',
-      assets: ['USDC', 'ETH', 'BTC', 'ARB'],
+      assets: ['DJED', 'ADA', 'NIGHT', 'SNEK'],
       targetApy: 'high',
       maxDrawdown: '20',
     };
@@ -34,7 +34,7 @@ describe('strategy generation', () => {
     const q: Questionnaire = {
       riskLevel: 1,
       horizon: 'long',
-      assets: ['USDC', 'ETH'],
+      assets: ['DJED', 'ADA'],
       targetApy: 'low',
       maxDrawdown: '5',
     };
@@ -47,7 +47,7 @@ describe('strategy generation', () => {
 
   it('builds private state with 32-byte secret/nonce and bigint allocation', async () => {
     const s = await generateStrategy({
-      riskLevel: 3, horizon: 'mid', assets: ['USDC', 'ETH', 'BTC'],
+      riskLevel: 3, horizon: 'mid', assets: ['DJED', 'ADA', 'NIGHT'],
       targetApy: 'mid', maxDrawdown: '10',
     });
     const ps = toPrivateState(s);

@@ -13,8 +13,8 @@ export const PRIVATE_STATE_ID = 'alphynPrivateState';
 
 export type DeployedAlphyn = Awaited<ReturnType<typeof findDeployedContract>>;
 
-// Asset order matches the contract: [USDC, ETH, BTC, ARB].
-export const ASSETS = ['USDC', 'ETH', 'BTC', 'ARB'] as const;
+// Asset order matches the contract: [DJED, ADA, NIGHT, SNEK].
+export const ASSETS = ['DJED', 'ADA', 'NIGHT', 'SNEK'] as const;
 
 /** Deterministic allocation from a risk level 1..5 (no server/AI needed in-browser). */
 export function allocationForRisk(risk: number): [bigint, bigint, bigint, bigint] {
@@ -57,6 +57,30 @@ export async function rebalance(contract: any, upBps: bigint[], downBps: bigint[
   return contract.callTx.rebalance(upBps, downBps);
 }
 
+// Real custody (Path A phase 1). `amount` is native-token (tNIGHT) base units.
+// The wallet balancing supplies the coin the `receiveUnshielded` in the circuit
+// pulls into contract custody.
+export async function deposit(contract: any, amount: bigint) {
+  return contract.callTx.deposit(amount);
+}
+
+// Deposit AND run one epoch in a single tx (one signature): credits custody and
+// records this epoch's PnL from the public oracle returns.
+export async function depositAndRebalance(contract: any, amount: bigint, upBps: bigint[], downBps: bigint[]) {
+  return contract.callTx.depositAndRebalance(amount, upBps, downBps);
+}
+
+// `recipient` is the Either<ContractAddress, UserAddress> the generated binding
+// expects: { is_left, left: { bytes }, right: { bytes } }. For a user payout we
+// set the right (UserAddress) branch.
+export function userRecipient(addressBytes: Uint8Array) {
+  return { is_left: false, left: { bytes: new Uint8Array(32) }, right: { bytes: addressBytes } };
+}
+
+export async function withdraw(contract: any, amount: bigint, addressBytes: Uint8Array) {
+  return contract.callTx.withdraw(amount, userRecipient(addressBytes));
+}
+
 export async function follow(contract: any, targetId: Uint8Array, pct: bigint) {
   return contract.callTx.follow(targetId, pct);
 }
@@ -69,6 +93,19 @@ export interface LeaderboardRow {
   netPnlScaled: bigint; // gain - loss (÷100 for true bps)
   followers: bigint;
   active: boolean;
+}
+
+/** Read a vault's real on-chain custody balance (native tNIGHT base units). */
+export async function readVaultCustody(
+  providers: any,
+  contractAddress: string,
+  vaultIdHex: string,
+): Promise<bigint> {
+  const state = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (!state) return 0n;
+  const l = ledger(state.data);
+  const id = Uint8Array.from((vaultIdHex.match(/.{1,2}/g) ?? []).map((b) => parseInt(b, 16)));
+  return l.custody.member(id) ? l.custody.lookup(id) : 0n;
 }
 
 /** Read the PUBLIC ledger - aggregate stats only; never any allocation. */

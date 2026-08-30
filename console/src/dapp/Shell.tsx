@@ -22,9 +22,9 @@ function Toasts() {
             }`}
           >
             {ok ? (
-              <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
             ) : (
-              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             )}
             <div className="min-w-0 flex-1">
               <p className="font-bold text-sm text-alphyn-text">{t.title}</p>
@@ -73,12 +73,12 @@ export default function Shell() {
   return (
     <div className="min-h-screen bg-background text-alphyn-text font-sans">
       {bridgeMode && (
-        <div className="bg-green-500/10 border-b border-green-500/20 text-green-700 text-xs font-bold px-6 py-2 text-center">
+        <div className="bg-green-500/10 border-b border-green-500/20 text-green-400 text-xs font-bold px-6 py-2 text-center">
           Local executor active: transactions run through your operator wallet on this machine.
         </div>
       )}
       {wrongNetwork && (
-        <div className="bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
+        <div className="bg-red-500/10 border-b border-red-500/30 text-red-400 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4" /> Wrong network. Switch your wallet to {NETWORK_ID} to transact safely.
         </div>
       )}

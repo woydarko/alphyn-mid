@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { computeReturns, type PriceVector } from '../src/priceFeed.js';
 
 describe('price feed — return computation', () => {
-  it('splits gains into upBps and keeps USDC flat', () => {
+  it('splits gains into upBps and keeps DJED flat', () => {
     const prev: PriceVector = [1, 2000, 50000, 1.0];
-    const cur: PriceVector = [1, 2060, 50000, 1.0]; // ETH +3%
+    const cur: PriceVector = [1, 2060, 50000, 1.0]; // ADA +3%
     const { upBps, downBps } = computeReturns(prev, cur);
     expect(upBps).toEqual([0n, 300n, 0n, 0n]);
     expect(downBps).toEqual([0n, 0n, 0n, 0n]);
@@ -12,7 +12,7 @@ describe('price feed — return computation', () => {
 
   it('splits losses into downBps', () => {
     const prev: PriceVector = [1, 2000, 50000, 1.2];
-    const cur: PriceVector = [1, 2000, 49500, 1.14]; // BTC -1%, ARB -5%
+    const cur: PriceVector = [1, 2000, 49500, 1.14]; // NIGHT -1%, SNEK -5%
     const { upBps, downBps } = computeReturns(prev, cur);
     expect(upBps).toEqual([0n, 0n, 0n, 0n]);
     expect(downBps).toEqual([0n, 0n, 100n, 500n]);
@@ -20,7 +20,7 @@ describe('price feed — return computation', () => {
 
   it('handles mixed moves and never marks an asset both up and down', () => {
     const prev: PriceVector = [1, 2000, 50000, 1.0];
-    const cur: PriceVector = [1, 2040, 49000, 1.1]; // ETH +2%, BTC -2%, ARB +10%
+    const cur: PriceVector = [1, 2040, 49000, 1.1]; // ADA +2%, NIGHT -2%, SNEK +10%
     const { upBps, downBps } = computeReturns(prev, cur);
     expect(upBps).toEqual([0n, 200n, 0n, 1000n]);
     expect(downBps).toEqual([0n, 0n, 200n, 0n]);

@@ -10,9 +10,14 @@ import {
   createVault as cvCreateVault,
   rebalance as cvRebalance,
   follow as cvFollow,
+  deposit as cvDeposit,
+  depositAndRebalance as cvDepositAndRebalance,
+  withdraw as cvWithdraw,
+  readVaultCustody,
   readLeaderboard,
   type LeaderboardRow,
 } from '../alphyn-api';
+import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
 import { rand32, type Strategy } from '../strategy';
 import { deriveVaultKey, seal, unseal, type Sealed } from './vaultCrypto';
 import { fetchOracle } from './priceFeed';
@@ -127,6 +132,10 @@ interface DappValue {
   mint: (s: Strategy, name: string) => Promise<LocalVault>;
   runEpoch: (vaultId: string) => Promise<void>;
   setPrincipal: (vaultId: string, amount: number) => void;
+  depositReal: (vaultId: string, amount: bigint) => Promise<void>;
+  withdrawReal: (vaultId: string, amount: bigint) => Promise<void>;
+  vaultCustody: (vaultId: string) => Promise<bigint>;
+  walletNightBalance: () => Promise<bigint>;
   renameVault: (vaultId: string, name: string) => void;
   follow: (vaultId: string, targetId: string, pct: number) => Promise<void>;
   unfollow: (vaultId: string) => Promise<void>;
@@ -151,13 +160,38 @@ const explainTxError = (e: any): Error => {
       'The operator wallet is low on dust (the fee resource, which regenerates from NIGHT over time). It refills on its own — wait a minute and retry.',
     );
   }
-  if (/proof-versioned|Custom error: 170|InvalidDustSpendProof|1010: Invalid Transaction/i.test(m)) {
-    return new Error(
-      'Network version gap: Preview has moved to the v9 transaction format, while this build runs on the stable v8 SDK (the v9 Compact compiler is not published yet). The proof was generated fine; the node rejected the submit format. On-chain submits resume when Midnight ships the v9 toolchain.',
-    );
+  const dustCode = m.match(/Custom error:\s*(\d+)/i)?.[1];
+  if (dustCode === '170') {
+    return new Error(`Dust proof rejected (Custom error 170) — proof server version mismatch (needs 8.1.0). Raw: ${m}`);
+  }
+  if (dustCode === '171') {
+    return new Error(`Dust out of validity window (Custom error 171) — indexer timestamp stale/lagging. Retry shortly. Raw: ${m}`);
+  }
+  if (/proof-versioned|1010: Invalid Transaction/i.test(m)) {
+    return new Error(`Transaction format rejected by node (possible ledger version gap). Raw: ${m}`);
   }
   return e instanceof Error ? e : new Error(m);
 };
+
+// A tx can land on-chain but its contract segment can still revert
+// (status FailFallible/FailEntirely) — e.g. the wallet couldn't fund a
+// receiveUnshielded because the amount exceeds spendable tNIGHT. Surface that as
+// a real error instead of a false success.
+function assertTxSucceeded(res: any, label: string): void {
+  const status = res?.status;
+  if (status && status !== 'SucceedEntirely') {
+    throw new Error(
+      `${label} failed on-chain (${status}). The tokens were not moved — most likely the amount exceeds your spendable tNIGHT (some may be reserved for fees/dust). Try a smaller amount.`,
+    );
+  }
+}
+
+const isCircuitMismatch = (e: any) =>
+  /verifier key|mismatched|are undefined|operations:/i.test(String(e?.message ?? e));
+
+// Pull a tx hash out of the various shapes callTx/deploy results can take.
+const txHashOf = (res: any): string | null =>
+  res?.txHash ?? res?.txId ?? res?.public?.txHash ?? res?.identifiers?.[0] ?? null;
 
 const toHex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
 const fromHex = (h: string) => new Uint8Array(h.match(/.{1,2}/g)!.map((x) => parseInt(x, 16)));
@@ -221,6 +255,9 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
   const apiRef = useRef<any>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const addrRef = useRef<string>('default');
+  // Guards against concurrent mints: a second call while one is in flight produces
+  // duplicate wallet submits that the node temporarily bans (masking real errors).
+  const mintingRef = useRef(false);
 
   const lsVaults = () => `alphyn.vaults.${addrRef.current}`;
   const lsAddr = () => `alphyn.contract.${addrRef.current}`;
@@ -255,7 +292,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     for (const r of records) {
       if (r.managed) {
         // Secrets live in the local bridge; the browser only needs the public
-        // shape plus the allocation for display and notional math.
+        // shape plus the allocation for display and PnL math.
         out.push({ ...r, secretHex: '', nonceHex: '', allocation: r.allocationPlain ?? [0, 0, 0, 0], locked: false });
         continue;
       }
@@ -426,6 +463,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
   const mint = useCallback(
     async (s: Strategy, name: string): Promise<LocalVault> => {
+      if (mintingRef.current) throw new Error('A mint is already in progress — wait for it to finish.');
+      mintingRef.current = true;
       try {
       if (bridgeMode) {
         // The user's wallet signs to authorize the mint and derive this vault's
@@ -465,9 +504,7 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
 
       let address = contractAddress ?? localStorage.getItem(lsAddr());
       let contract: any;
-      if (address) {
-        contract = await joinVaultContract(providers, address, ps);
-      } else {
+      const deployFresh = async () => {
         const deployed = await deployContract(providers, {
           compiledContract: CompiledAlphynContract,
           privateStateId: PRIVATE_STATE_ID,
@@ -477,11 +514,34 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         contract = deployed;
         setContractAddress(address);
         localStorage.setItem(lsAddr(), address);
+      };
+      // A contract deployed before the current circuit set (e.g. pre-deposit/withdraw)
+      // has different verifier keys. findDeployedContract sometimes validates lazily,
+      // so the mismatch can surface at join OR at the createVault call — treat either
+      // as "incompatible" and deploy a fresh matching contract, then retry the call.
+      const isCircuitMismatch = (e: any) =>
+        /verifier key|mismatched|are undefined|operations:/i.test(String(e?.message ?? e));
+
+      const createOnce = async () => {
+        const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));
+        const mintTx = await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
+        const after = await readLeaderboard(providers, address);
+        return { before, after, mintTx };
+      };
+
+      let created: { before: Set<string>; after: Awaited<ReturnType<typeof readLeaderboard>>; mintTx: any };
+      try {
+        if (!address) throw new Error('no cached contract');
+        contract = await joinVaultContract(providers, address, ps);
+        created = await createOnce();
+      } catch (err) {
+        if (!isCircuitMismatch(err)) throw err;
+        // Incompatible (or no) contract — deploy one matching this build and retry.
+        await deployFresh();
+        created = await createOnce();
       }
 
-      const before = new Set((await readLeaderboard(providers, address)).map((r) => r.id));
-      const mintTx = await cvCreateVault(contract, categoryEnum(s.category), BigInt(s.assetCount));
-      const after = await readLeaderboard(providers, address);
+      const { before, after, mintTx } = created;
       setLeaderboard(after);
       const vaultId = after.find((r) => !before.has(r.id))?.id ?? `local-${Date.now()}`;
 
@@ -509,6 +569,8 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
       return v;
       } catch (e) {
         throw explainTxError(e);
+      } finally {
+        mintingRef.current = false;
       }
     },
     [bridgeMode, providers, contractAddress, vaults, persist, refreshLeaderboard, mapBridgeVault, refreshManagedVaults, notify],
@@ -527,17 +589,21 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
         }
         const { up, down } = await fetchOracle();
         const contract = await joinFor(v);
-        await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        const res: any = await cvRebalance(contract, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+        assertTxSucceeded(res, 'Epoch');
         const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
         const pnlBps = Math.round(num / 100);
         const updated: LocalVault = { ...v, epochs: [...v.epochs, { n: v.epochs.length + 1, pnlBps, ts: Date.now() }] };
         await persist(vaults.map((x) => (x.vaultId === vaultId ? updated : x)));
         refreshLeaderboard();
+        notify({ kind: 'success', title: 'Epoch run', body: `${v.name} · ${pnlBps >= 0 ? '+' : ''}${(pnlBps / 100).toFixed(2)}%`, txId: txHashOf(res) });
       } catch (e) {
-        throw explainTxError(e);
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Epoch failed', body: err.message });
+        throw err;
       }
     },
-    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults],
+    [vaults, providers, persist, refreshLeaderboard, refreshManagedVaults, notify],
   );
 
   const setPrincipal = useCallback(
@@ -551,6 +617,110 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     },
     [vaults, persist, refreshManagedVaults],
   );
+  // Real on-chain deposit (Path A phase 1): move actual tNIGHT into the vault's
+  // custody via the `deposit` circuit. `amount` is native-token base units. The
+  // wallet balancing supplies the coin the contract's receiveUnshielded pulls in.
+  const depositReal = useCallback(
+    async (vaultId: string, amount: bigint) => {
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        if (v.managed) throw new Error('Managed (bridge) vaults deposit through the bridge, not the wallet.');
+        // Deposit AND run one epoch in a single signature. Pull oracle returns;
+        // if the feed is down, fall back to a flat epoch so the deposit still
+        // goes through (custody is credited, PnL just doesn't move this epoch).
+        let up = [0, 0, 0, 0];
+        let down = [0, 0, 0, 0];
+        try { const o = await fetchOracle(); up = o.up; down = o.down; } catch { /* flat epoch */ }
+
+        const contract = await joinFor(v);
+        let ranEpoch = true;
+        let res: any;
+        try {
+          res = await cvDepositAndRebalance(contract, amount, up.map((x) => BigInt(x)), down.map((x) => BigInt(x)));
+          assertTxSucceeded(res, 'Deposit');
+        } catch (err) {
+          if (!isCircuitMismatch(err)) throw err;
+          // Vault predates depositAndRebalance — plain deposit, no epoch this time.
+          res = await cvDeposit(contract, amount);
+          assertTxSucceeded(res, 'Deposit');
+          ranEpoch = false;
+        }
+
+        // Mirror on-chain effects locally: principal += deposit, and (if it ran) the epoch.
+        const num = v.allocation.reduce((acc, w, i) => acc + w * up[i] - w * down[i], 0);
+        const pnlBps = Math.round(num / 100);
+        await persist(vaults.map((x) =>
+          x.vaultId === vaultId
+            ? {
+                ...x,
+                principal: x.principal + Number(amount),
+                epochs: ranEpoch ? [...x.epochs, { n: x.epochs.length + 1, pnlBps, ts: Date.now() }] : x.epochs,
+              }
+            : x,
+        ));
+        refreshLeaderboard();
+        notify({ kind: 'success', title: ranEpoch ? 'Deposited + epoch run' : 'Deposited', body: v.name, txId: txHashOf(res) });
+      } catch (e) {
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Deposit failed', body: err.message });
+        throw err;
+      }
+    },
+    [vaults, providers, persist, refreshLeaderboard, notify],
+  );
+
+  // The connected wallet's unshielded tNIGHT balance (base units). On Preprod the
+  // only unshielded token is Night, so the sum of unshielded balances is it.
+  const walletNightBalance = useCallback(async (): Promise<bigint> => {
+    const api = apiRef.current;
+    if (!api || typeof api.getUnshieldedBalances !== 'function') return 0n;
+    try {
+      const balances = await api.getUnshieldedBalances();
+      return Object.values(balances ?? {}).reduce<bigint>((a, b) => a + BigInt(b as any), 0n);
+    } catch {
+      return 0n;
+    }
+  }, []);
+
+  // Read a vault's real on-chain custody balance (native base units).
+  const vaultCustody = useCallback(
+    async (vaultId: string): Promise<bigint> => {
+      const v = vaults.find((x) => x.vaultId === vaultId);
+      if (!v || !providers) return 0n;
+      try {
+        return await readVaultCustody(providers, v.contractAddress, v.vaultId);
+      } catch {
+        return 0n;
+      }
+    },
+    [vaults, providers],
+  );
+
+  // Real on-chain withdraw: pay custodied tNIGHT back to the owner's unshielded
+  // address via the `withdraw` circuit.
+  const withdrawReal = useCallback(
+    async (vaultId: string, amount: bigint) => {
+      try {
+        const v = requireUnlocked(vaults.find((x) => x.vaultId === vaultId));
+        if (v.managed) throw new Error('Managed (bridge) vaults withdraw through the bridge, not the wallet.');
+        const addrBytes = new Uint8Array(
+          MidnightBech32m.parse(addrRef.current).decode(UnshieldedAddress, NETWORK_ID).data,
+        );
+        const contract = await joinFor(v);
+        const res: any = await cvWithdraw(contract, amount, addrBytes);
+        assertTxSucceeded(res, 'Withdraw');
+        await persist(vaults.map((x) => (x.vaultId === vaultId ? { ...x, principal: Math.max(0, x.principal - Number(amount)) } : x)));
+        refreshLeaderboard();
+        notify({ kind: 'success', title: 'Withdrawn', body: v.name, txId: txHashOf(res) });
+      } catch (e) {
+        const err = explainTxError(e);
+        notify({ kind: 'error', title: 'Withdraw failed', body: err.message });
+        throw err;
+      }
+    },
+    [vaults, providers, persist, refreshLeaderboard, notify],
+  );
+
   const renameVault = useCallback(
     (vaultId: string, name: string) => {
       const v = vaults.find((x) => x.vaultId === vaultId);
@@ -644,6 +814,10 @@ export function DappProvider({ children }: { children: React.ReactNode }) {
     mint,
     runEpoch,
     setPrincipal,
+    depositReal,
+    withdrawReal,
+    vaultCustody,
+    walletNightBalance,
     renameVault,
     follow,
     unfollow,

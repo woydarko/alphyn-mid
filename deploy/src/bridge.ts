@@ -290,7 +290,7 @@ async function main() {
     'POST /epoch': async (body) => {
       const r = loadStore()[body.vaultId];
       if (!r) throw new Error('unknown vault');
-      if ((r.principal ?? 0) <= 0) throw new Error('Fund this vault first: set notional capital via Deposit.');
+      if ((r.principal ?? 0) <= 0) throw new Error('Fund this vault first: deposit tNIGHT via Deposit.');
       const txId = await runEpochFor(r);
       return { txId };
     },

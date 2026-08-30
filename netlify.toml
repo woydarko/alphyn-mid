@@ -1,8 +1,9 @@
-# Netlify config — deploys the console dApp as a static UI showcase.
-# Note: mint/epoch need the local bridge + proof server, so the hosted build shows
-# the landing, wallet connect and the strategy quiz; on-chain minting is demoed
-# locally (see README). The build serves at root ('/'), not the '/app/' base used
-# when the app is embedded under the Next frontend.
+# Netlify config — deploys the console dApp (the full wallet-driven app).
+# The hosted build is fully functional on Preprod: connect 1AM, mint, deposit
+# (which runs an epoch), withdraw, and read the leaderboard all happen on-chain
+# through the wallet's hosted proving (1AM Proofstation) — no bridge, no local
+# proof server. It reads proof-server + indexer endpoints from the connected
+# wallet, so no VITE_* overrides are set here. Serves at root ('/').
 [build]
   command = "cd console && npm install --legacy-peer-deps && npx vite build --base=/"
   publish = "console/dist"

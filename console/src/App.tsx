@@ -24,7 +24,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
           <p style={{ color: '#8A7D74', marginTop: 8 }}>{this.state.error.message}</p>
           <button
             onClick={() => location.reload()}
-            style={{ marginTop: 16, padding: '10px 18px', background: '#FF5E1A', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer' }}
+            style={{ marginTop: 16, padding: '10px 18px', background: '#8B5CF6', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 10, cursor: 'pointer' }}
           >
             Reload
           </button>

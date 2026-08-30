@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const ThreeHero = lazy(() => import('../components/ThreeHero'));
 import {
   Lock, Users, ArrowRight, Globe, MessageCircle, Layers, Zap, Code2,
-  ChevronRight, BarChart3, Activity, Cpu, ArrowUpRight, Wallet, Info, AlertTriangle,
+  ChevronRight, BarChart3, Cpu, ArrowUpRight, Wallet, Info, AlertTriangle,
 } from 'lucide-react';
 import { useDapp } from '../dapp/DappContext';
 
@@ -47,6 +49,13 @@ export default function Landing() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [topVaults, setTopVaults] = useState<any[]>([]);
+  const [showSticky, setShowSticky] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowSticky(window.scrollY > 600);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const connected = phase === 'ready';
   const connecting = busy || phase === 'connecting';
@@ -63,7 +72,7 @@ export default function Landing() {
     const ok = await connect();
     setBusy(false);
     if (ok) nav('/create');
-    else setError('Connect a Midnight wallet (1AM or Lace) on Preview to launch.');
+    else setError('Connect a Midnight wallet (1AM or Lace) on Preprod to launch.');
   };
 
   // Best-effort live preview from the local bridge; silently empty if it is down.
@@ -93,8 +102,8 @@ export default function Landing() {
       `}} />
 
       {wrongNetwork && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-500/10 border-b border-red-500/30 text-red-600 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
-          <AlertTriangle className="w-4 h-4" /> Switch your wallet to Preview to transact safely.
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-500/10 border-b border-red-500/30 text-red-400 text-sm font-bold px-6 py-2.5 flex items-center justify-center gap-2">
+          <AlertTriangle className="w-4 h-4" /> Switch your wallet to Preprod to transact safely.
         </div>
       )}
 
@@ -144,7 +153,7 @@ export default function Landing() {
                 AI-generated<br />
                 <span className="relative inline-block cursor-crosshair group/secret">
                   <span className="inline-block text-alphyn-text/10 blur-[4px] transition-all duration-700 group-hover/secret:opacity-0 group-hover/secret:blur-xl">private</span>
-                  <span className="absolute left-0 top-0 opacity-0 group-hover/secret:opacity-100 group-hover/secret:-translate-y-2 transition-all duration-700 bg-clip-text text-transparent bg-gradient-to-br from-[#FF5E1A] via-[#FF9559] to-[#FFE0CC] drop-shadow-[0_10px_25px_rgba(255,94,26,0.6)]">private</span>
+                  <span className="absolute left-0 top-0 opacity-0 group-hover/secret:opacity-100 group-hover/secret:-translate-y-2 transition-all duration-700 bg-clip-text text-transparent bg-gradient-to-br from-[#8B5CF6] via-[#A78BFA] to-[#DDD6FE] drop-shadow-[0_10px_25px_rgba(139,92,246,0.6)]">private</span>
                 </span><br />
                 vault strategy.
               </h1>
@@ -156,7 +165,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row items-center gap-5 pt-4">
                 <button
                   onClick={launchApp} disabled={connecting}
-                  className="w-full sm:w-auto px-10 py-5 bg-[#FF5E1A] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-xl shadow-orange-500/20 disabled:opacity-60"
+                  className="w-full sm:w-auto px-10 py-5 bg-[#8B5CF6] text-white font-black text-lg rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#7C3AED] transition-all flex items-center justify-center gap-3 border-b-4 border-[#6D28D9] shadow-xl shadow-purple-500/20 disabled:opacity-60"
                 >
                   {connecting ? 'Connecting…' : connected ? 'Launch App' : 'Connect & Launch'} <ArrowRight className="w-5 h-5" />
                 </button>
@@ -167,59 +176,50 @@ export default function Landing() {
                   See How It Works
                 </a>
               </div>
-              {error && <p className="text-sm text-red-600 max-w-md break-words">{error}</p>}
+              {error && <p className="text-sm text-red-400 max-w-md break-words">{error}</p>}
             </div>
 
-            {/* Hero Visual */}
-            <div className="relative h-[500px] w-full hidden lg:block">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="animate-float-1 relative z-20 w-80 bg-background border border-alphyn-surfaceBorder rounded-3xl p-6 shadow-2xl">
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="w-12 h-12 bg-alphyn-orange rounded-xl flex items-center justify-center shadow-inner">
-                      <Lock className="text-white w-6 h-6" />
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-1 rounded bg-green-500/10 text-green-600 border border-green-500/20 uppercase tracking-widest">Active</span>
+            {/* Hero Visual — 3D privacy crystals with a live vault card floating over them */}
+            <div className="relative h-[520px] w-full hidden lg:block">
+              <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-40 h-40 rounded-full bg-alphyn-orange/10 blur-3xl animate-pulse" /></div>}>
+                <div className="absolute inset-0">
+                  <ThreeHero />
+                </div>
+              </Suspense>
+
+              <div className="animate-float-1 absolute top-6 right-2 z-20 w-72 bg-alphyn-surface/70 border border-alphyn-orange/25 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-12 h-12 bg-alphyn-orange rounded-xl flex items-center justify-center shadow-inner shadow-black/30">
+                    <Lock className="text-white w-6 h-6" />
                   </div>
-                  <h3 className="font-bold text-xl mb-1">Alpha Strategy X</h3>
-                  <p className="text-sm text-alphyn-textMuted mb-6 font-medium">Strategy kept private with zero-knowledge proofs.</p>
-                  <div className="space-y-3">
-                    <div className="h-2 bg-alphyn-surfaceBorder rounded-full overflow-hidden">
-                      <div className="h-full bg-alphyn-orange w-3/4"></div>
-                    </div>
-                    <div className="flex justify-between text-sm font-bold font-mono">
-                      <span className="text-alphyn-textMuted uppercase tracking-widest font-sans text-xs">TVL</span>
-                      <span>$142,500</span>
-                    </div>
-                    <div className="flex justify-between text-sm font-bold font-mono">
-                      <span className="text-alphyn-textMuted uppercase tracking-widest font-sans text-xs">APY</span>
-                      <span className="text-green-600">+14.2%</span>
-                    </div>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-green-500/15 text-green-400 border border-green-500/30 uppercase tracking-widest">Active</span>
+                </div>
+                <h3 className="font-bold text-xl mb-1">Alpha Strategy X</h3>
+                <p className="text-sm text-alphyn-textMuted mb-6 font-medium">Allocation kept private with zero-knowledge proofs.</p>
+                <div className="space-y-3">
+                  <div className="h-2 bg-alphyn-surfaceBorder rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-alphyn-orange to-[#A78BFA] w-3/4"></div>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold font-mono">
+                    <span className="text-alphyn-textMuted uppercase tracking-widest font-sans text-xs">Custody</span>
+                    <span>1,420 tNIGHT</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold font-mono">
+                    <span className="text-alphyn-textMuted uppercase tracking-widest font-sans text-xs">PnL</span>
+                    <span className="text-green-400">+14.2%</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="animate-float-2 absolute z-10 w-72 bg-alphyn-surface/90 border border-alphyn-surfaceBorder rounded-3xl p-6 shadow-xl backdrop-blur-md">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Cpu className="w-8 h-8 text-blue-500" />
-                    <span className="font-bold text-sm uppercase tracking-widest text-alphyn-textMuted">AI Model</span>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="h-2.5 bg-alphyn-surfaceBorder rounded-full w-full"></div>
-                    <div className="h-2.5 bg-alphyn-surfaceBorder rounded-full w-5/6"></div>
-                    <div className="h-2.5 bg-alphyn-surfaceBorder rounded-full w-4/6"></div>
-                  </div>
+              <div className="animate-float-3 absolute bottom-8 left-2 z-20 w-56 bg-alphyn-surface/60 border border-alphyn-surfaceBorder rounded-2xl p-5 shadow-xl backdrop-blur-xl">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <Cpu className="w-6 h-6 text-[#A78BFA]" />
+                  <span className="font-bold text-xs uppercase tracking-widest text-alphyn-textMuted">ZK Proven</span>
                 </div>
-
-                <div className="animate-float-3 absolute z-10 w-72 bg-alphyn-surface/90 border border-alphyn-surfaceBorder rounded-3xl p-6 shadow-xl backdrop-blur-md">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Activity className="w-8 h-8 text-green-600" />
-                    <span className="font-bold text-sm uppercase tracking-widest text-alphyn-textMuted">Market Analysis</span>
-                  </div>
-                  <div className="flex items-end gap-2 h-14 mt-4">
-                    <div className="w-1/4 bg-green-500/20 border border-green-500/30 rounded-t h-1/2"></div>
-                    <div className="w-1/4 bg-green-500/40 border border-green-500/50 rounded-t h-3/4"></div>
-                    <div className="w-1/4 bg-green-500/60 border border-green-500/70 rounded-t h-full"></div>
-                    <div className="w-1/4 bg-green-500 rounded-t h-5/6 shadow-[0_0_15px_rgba(34,197,94,0.4)]"></div>
-                  </div>
+                <div className="flex items-end gap-1.5 h-10">
+                  {[40, 65, 50, 80, 70, 95].map((h, i) => (
+                    <div key={i} className="flex-1 rounded-t bg-gradient-to-t from-alphyn-orange/40 to-[#A78BFA]" style={{ height: `${h}%` }} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -229,8 +229,8 @@ export default function Landing() {
           <div className="mt-8 flex gap-2 bg-alphyn-orange/5 border border-alphyn-orange/20 rounded-2xl px-4 py-3 max-w-3xl">
             <Info className="w-4 h-4 text-alphyn-orange shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed text-alphyn-textMuted">
-              <span className="font-bold text-alphyn-text">Note:</span> Midnight has no live DEX yet, so Alphyn cannot add liquidity to real pools.
-              Strategies run on notional capital — allocations are committed and PnL is proven in zero-knowledge on-chain, ready to route to a DEX once one ships.
+              <span className="font-bold text-alphyn-text">Note:</span> Vaults custody real tNIGHT on-chain (deposit/withdraw are live circuits).
+              Allocations stay private, PnL is proven in zero-knowledge, and oracle-priced basket swaps are rolling out (see the Path A plan).
             </p>
           </div>
         </section>
@@ -318,10 +318,10 @@ export default function Landing() {
             ].map((item) => (
               <div key={item.step} className={`lg:absolute ${item.position} ${item.rotation} lg:w-[420px] bg-background border border-alphyn-surfaceBorder rounded-3xl p-6 hover:border-alphyn-orange/60 transition-all duration-500 group shadow-2xl text-left flex flex-col relative z-10 hover:rotate-0 hover:scale-[1.02] hover:z-20`}>
                 <div className="flex justify-between items-start mb-6">
-                  <div className="w-12 h-12 bg-alphyn-surface border border-alphyn-surfaceBorder rounded-xl flex items-center justify-center shadow-inner group-hover:bg-[#FF5E1A] group-hover:border-[#FF5E1A] transition-colors duration-300">
+                  <div className="w-12 h-12 bg-alphyn-surface border border-alphyn-surfaceBorder rounded-xl flex items-center justify-center shadow-inner group-hover:bg-[#8B5CF6] group-hover:border-[#8B5CF6] transition-colors duration-300">
                     <item.icon className="text-alphyn-text group-hover:text-white w-6 h-6 transition-colors duration-300" />
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-[#FF5E1A]/10 text-[#FF5E1A] border border-[#FF5E1A]/20 uppercase tracking-widest">Step {item.step}</span>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20 uppercase tracking-widest">Step {item.step}</span>
                 </div>
                 <h3 className="font-bold text-xl mb-1">{item.title}</h3>
                 <p className="text-sm text-alphyn-textMuted font-medium">{item.desc}</p>
@@ -366,7 +366,7 @@ export default function Landing() {
                         </span>
                       </div>
                       <div className="col-span-5 md:col-span-3 text-right">
-                        <span className={`text-xl font-black font-mono ${pnlPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`text-xl font-black font-mono ${pnlPct >= 0 ? 'text-green-600' : 'text-red-400'}`}>
                           {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
                         </span>
                       </div>
@@ -382,12 +382,12 @@ export default function Landing() {
 
         {/* CTA */}
         <section className="px-6 lg:px-12 py-32 max-w-4xl mx-auto text-center space-y-8 relative">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-500/10 via-transparent to-transparent -z-10 blur-xl"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-500/10 via-transparent to-transparent -z-10 blur-xl"></div>
           <h2 className="text-5xl lg:text-6xl font-black tracking-tight">Ready to secure your alpha?</h2>
           <p className="text-xl text-alphyn-textMuted max-w-2xl mx-auto font-medium">Join the next generation of DeFi where strategy creation is intelligent and execution is absolutely private.</p>
           <button
             onClick={launchApp} disabled={connecting}
-            className="px-12 py-6 bg-[#FF5E1A] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#E0480C] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#C23C0A] shadow-2xl shadow-orange-500/30 mt-8 disabled:opacity-60"
+            className="px-12 py-6 bg-[#8B5CF6] text-white font-black text-xl rounded-2xl active:translate-y-1 active:border-b-0 hover:bg-[#7C3AED] transition-all inline-flex items-center justify-center gap-3 border-b-4 border-[#6D28D9] shadow-2xl shadow-purple-500/30 mt-8 disabled:opacity-60"
           >
             {connecting ? 'Connecting…' : connected ? 'Launch App' : 'Connect & Launch'} <ArrowRight className="w-6 h-6" />
           </button>
@@ -432,6 +432,22 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* Floating sticky CTA — always one tap from launching once you start scrolling */}
+      <button
+        onClick={launchApp}
+        disabled={connecting}
+        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-6 py-4 rounded-2xl font-black text-white bg-[#8B5CF6] hover:bg-[#7C3AED] border-b-4 border-[#6D28D9] shadow-2xl shadow-purple-500/40 transition-all duration-500 disabled:opacity-60 ${
+          showSticky ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-16 pointer-events-none'
+        }`}
+      >
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+        </span>
+        {connecting ? 'Connecting…' : connected ? 'Launch App' : 'Connect & Launch'}
+        <ArrowRight className="w-5 h-5" />
+      </button>
     </div>
   );
 }
