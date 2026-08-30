@@ -5,7 +5,25 @@
 # proof server. It reads proof-server + indexer endpoints from the connected
 # wallet, so no VITE_* overrides are set here. Serves at root ('/').
 [build]
-  command = "cd console && npm install --legacy-peer-deps && npx vite build --base=/"
+  # The compiled contract binding + ZK proving keys (src/managed, public/keys,
+  # public/zkir) are gitignored, so the hosted build must generate them: install
+  # the Compact toolchain, compile the contract, stage the ZK assets into
+  # public/, then build. Without this the app can't fetch proving keys at runtime
+  # and on-chain mint/deposit fail.
+  command = """
+set -e
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+compact update 0.31.1
+cd console
+npm install --legacy-peer-deps
+rm -rf src/managed
+compact compile ../contract/src/alphyn.compact src/managed/alphyn
+rm -rf public/keys public/zkir
+cp -r src/managed/alphyn/keys public/keys
+cp -r src/managed/alphyn/zkir public/zkir
+npx vite build --base=/
+"""
   publish = "console/dist"
 
 [build.environment]
