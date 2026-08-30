@@ -9,7 +9,7 @@
 - **Demo video:** [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE)
 - **Live demo:** [alphynvault.netlify.app](https://alphynvault.netlify.app) — connect a Midnight wallet (1AM) on Preprod, run the strategy quiz, and mint a vault. Minting deploys/calls the contract **natively from the browser** through the wallet's hosted proving — no bridge, no local proof server.
 - **X profile:** [@AlphynVault](https://x.com/AlphynVault)
-- **Contract (Preprod):** `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4`
+- **Contract (Preprod):** `66850e6c6ea19c2a9c450c4b55f893a7dfafca2f272b0ddec960dda516608e34` — has the custody circuits; a real tNIGHT deposit is credited on-chain (10 tNIGHT in its `custody` map). Each mint deploys a fresh vault contract from the same build, so addresses vary per user.
 
 ## Level 5 submission
 
@@ -18,7 +18,7 @@ The Full Moon cycle: the same MVP, now live on **Preprod**, transacting natively
 | Requirement | Where |
 |-------------|-------|
 | Same MVP from Level 4, extended | Now runs on Preprod via the browser + 1AM (no bridge); see [Running on Preprod](#running-on-preprod-the-native-browser-path) |
-| Verifiable Preprod contract | `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4` — createVault verified on-chain (block 2245657) |
+| Verifiable Preprod contract | `66850e6c6ea19c2a9c450c4b55f893a7dfafca2f272b0ddec960dda516608e34` — real tNIGHT deposit credited on-chain (deposit ContractCall, block 2261180) |
 | 50 Preprod users (verifiable wallets) | Tracked in [docs/PREPROD-USERS.md](docs/PREPROD-USERS.md) |
 | Feedback loop documented | [docs/FEEDBACK.md](docs/FEEDBACK.md) |
 | Updated documentation | This README + [docs/USAGE.md](docs/USAGE.md), [docs/PRIVACY.md](docs/PRIVACY.md) |
@@ -58,10 +58,10 @@ This is a rewrite of an earlier EVM/iExec version. The old design leaned on a tr
 
 | Network | Address |
 |---------|---------|
-| Preprod (Level 5) | `9ac4a69b8e384df3522041e413a2e5e13b534929a7dd9af37703e968a76916c4` |
+| Preprod (Level 5) | `66850e6c6ea19c2a9c450c4b55f893a7dfafca2f272b0ddec960dda516608e34` |
 | Preview (Level 4) | `9afb6efaf563a9eceb7d97d9627ddb513432e9b67d8461eab151af553cd38be3` |
 
-Deployed and verified live on Preprod: `createVault` ran on-chain (block 2245657, tx `662918c413ef07dd810af255aab83e13651fc1b544dab084a42eae7faef12187`), submitted straight from the browser through the connected wallet.
+Verified live on Preprod, straight from the browser: `createVault` (tx `662918c413ef07dd810af255aab83e13651fc1b544dab084a42eae7faef12187`) and a real tNIGHT **deposit** (ContractCall in block 2261180, tx `58ee057f503bdc8a819c35c967607905cdc154b78ad56b4156437e6c31a8d582`) that credited the vault's on-chain `custody`. Each mint deploys a fresh vault contract from the same build, so per-user addresses vary.
 
 ## Running on Preprod: the native browser path
 
