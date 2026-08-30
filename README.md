@@ -25,6 +25,16 @@ The Full Moon cycle: the same MVP, now live on **Preprod**, transacting natively
 | ≥20 meaningful commits | This cycle's history on `main` |
 | Demo video | [youtu.be/gdQ5BlNNoYE](https://youtu.be/gdQ5BlNNoYE) _(Preprod re-record in progress)_ |
 
+### What changed since Level 4
+
+- **Preview → Preprod.** Real network, verifiable wallets.
+- **Bridge → native browser.** Mint/deposit/withdraw/epoch run through 1AM (hosted proving + dust sponsorship). No bridge, no local proof server.
+- **Notional → real custody.** New `deposit`/`withdraw` circuits hold actual **tNIGHT** on-chain; the paper model is gone.
+- **Deposit runs an epoch** (`depositAndRebalance`) — one signature funds and advances the vault; the manual Run epoch button is gone.
+- **Basket USDC/ETH/BTC/ARB → DJED/ADA/NIGHT/SNEK** (Midnight/Cardano, oracle-priced).
+- **UX overhaul.** Dark Midnight theme, three.js hero, gradient PnL chart, tighter dashboard, tx toasts with hashes, whole-tNIGHT amounts + MAX.
+- **Feedback loop** documented (dogfooding → commits) and docs synced. 25 meaningful commits.
+
 ### Level 4 submission (previous cycle)
 
 | Requirement | Where |
