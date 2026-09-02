@@ -45,20 +45,22 @@ external-user rows get appended here once the hosted demo is out.
 
 ## What we changed (feedback → commit)
 
-Traceability: each change links the feedback item to the commit that shipped it.
+Traceability: each feedback row above maps to the commit that shipped the fix.
+Every hash links to the diff on GitHub. Full history:
+[commits/main](https://github.com/woydarko/alphyn-mid/commits/main).
 
 | Feedback # | Change | Commit | Docs updated |
 |------------|--------|--------|--------------|
-| 1 | Denominate amounts in whole tNIGHT (6 decimals), not STAR base units | `57ade27` | README |
-| 2 | Show wallet tNIGHT balance + MAX on the deposit form | `628b452` | — |
-| 3 | `depositAndRebalance` circuit — a deposit runs one epoch in the same tx | `2968f53` | README |
-| 4 | Tx toasts (success/error) with the hash + explorer link; guard amounts and surface on-chain reverts | `ed635be`, `0998614` | — |
-| 5 | Full dark Midnight theme with dark-purple accent | `bfac3c0` | — |
-| 6 | Tighter dashboard — trimmed copy, one consistent card style, less rounding, hover interaction | `ed635be` | — |
-| 7 | Remove quiz preselect; smoother option animations | `bfac3c0` | — |
-| 8 | Oracle retries + surfaces a clear error instead of a silent flat epoch | `bfac3c0` | — |
-| 9 | Drop the redundant Run epoch button; normalize vault-detail card typography | `097c642`, `f6518ab` | — |
-| 10 | Clarify the basket is an oracle-priced target, not a real swap (custody is real tNIGHT) | `f16b6f6` | README, PRIVACY, PROPOSAL |
+| 1 | Denominate amounts in whole tNIGHT (6 decimals), not STAR base units | [57ade27](https://github.com/woydarko/alphyn-mid/commit/57ade27) | README |
+| 2 | Show wallet tNIGHT balance + MAX on the deposit form | [628b452](https://github.com/woydarko/alphyn-mid/commit/628b452) | — |
+| 3 | `depositAndRebalance` circuit — a deposit runs one epoch in the same tx | [2968f53](https://github.com/woydarko/alphyn-mid/commit/2968f53) | README |
+| 4 | Tx toasts (success/error) with the hash + explorer link; guard amounts and surface on-chain reverts | [ed635be](https://github.com/woydarko/alphyn-mid/commit/ed635be), [0998614](https://github.com/woydarko/alphyn-mid/commit/0998614) | — |
+| 5 | Full dark Midnight theme with dark-purple accent | [bfac3c0](https://github.com/woydarko/alphyn-mid/commit/bfac3c0) | — |
+| 6 | Tighter dashboard — trimmed copy, one consistent card style, less rounding, hover interaction | [ed635be](https://github.com/woydarko/alphyn-mid/commit/ed635be) | — |
+| 7 | Remove quiz preselect; smoother option animations | [bfac3c0](https://github.com/woydarko/alphyn-mid/commit/bfac3c0) | — |
+| 8 | Oracle retries + surfaces a clear error instead of a silent flat epoch | [bfac3c0](https://github.com/woydarko/alphyn-mid/commit/bfac3c0) | — |
+| 9 | Drop the redundant Run epoch button; normalize vault-detail card typography | [097c642](https://github.com/woydarko/alphyn-mid/commit/097c642), [f6518ab](https://github.com/woydarko/alphyn-mid/commit/f6518ab) | — |
+| 10 | Clarify the basket is an oracle-priced target, not a real swap (custody is real tNIGHT) | [f16b6f6](https://github.com/woydarko/alphyn-mid/commit/f16b6f6) | README, PRIVACY, PROPOSAL |
 
 ## Docs kept in sync
 
